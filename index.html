@@ -24,7 +24,7 @@
   </div>
 </section>
 
-<section id="studio" class="studio"><p class="eyebrow">DESIGNED BY YOU • BUILT BY CRAFTSMEN</p><h2>Explore Our Design Studio</h2><p class="studio-intro">Start with your project type, choose materials and finishes, then prepare a design summary to discuss with our team.</p><div class="studio-cards"><article><span class="studio-icon">▦</span><h3>Kitchen Design</h3><p>Explore cabinetry styles, wood species and finish selections.</p><button type="button" class="btn gold" data-type="Kitchen Cabinetry">Design Your Kitchen</button></article><article><span class="studio-icon">◇</span><h3>Custom Barn Doors</h3><p>Choose patterns, hardwoods and hardware for a handcrafted door.</p><button type="button" class="btn gold" data-type="Custom Barn Door">Build a Barn Door</button></article><article><span class="studio-icon">▤</span><h3>Bathroom Design</h3><p>Plan vanity styles, wood finishes and project details.</p><button type="button" class="btn gold" data-type="Bathroom Remodel">Design Your Bathroom</button></article></div><div class="configurator" id="configurator" hidden><h3 id="config-title">Your Design Selections</h3><div class="config-fields"><label>Wood species<select id="wood"><option>White Oak</option><option>Maple</option><option>Mahogany</option><option>Pecky Cypress</option><option>Paint Grade</option></select></label><label>Finish<select id="finish"><option>Natural Clear</option><option>Warm Walnut</option><option>Dark Espresso</option><option>Painted White</option><option>Custom Finish</option></select></label><label>Design style<select id="pattern"><option>Traditional Inset</option><option>Modern Shaker</option><option>Herringbone</option><option>Chevron</option><option>Custom Pattern</option></select></label><label>Approximate dimensions<input id="dimensions" placeholder="e.g. 36 × 84 inches or room dimensions"></label></div><label>Project notes<textarea id="design-notes" placeholder="Describe your project..."></textarea></label><div class="config-actions"><button type="button" class="btn gold" id="copy-design">Copy Design Summary</button><a class="btn outline" href="#contact">Discuss My Project</a></div><p id="design-status" role="status" aria-live="polite"></p></div><p class="studio-note">Design selections are planning tools, not a photorealistic 3D preview or a submitted quote. Contact us for measurements and pricing.</p></section><section id="services" class="services">
+<section id="studio" class="studio"><p class="eyebrow">DESIGNED BY YOU • BUILT BY CRAFTSMEN</p><h2>Explore Our Design Studio</h2><p class="studio-intro">Start with your project type, choose materials and finishes, then prepare a design summary to discuss with our team.</p><div class="studio-cards"><article><span class="studio-icon">▦</span><h3>Kitchen Design</h3><p>Explore cabinetry styles, wood species and finish selections.</p><button type="button" class="btn gold" data-type="Kitchen Cabinetry">Design Your Kitchen</button></article><article><span class="studio-icon">◇</span><h3>Custom Barn Doors</h3><p>Choose patterns, hardwoods and hardware for a handcrafted door.</p><button type="button" class="btn gold" data-type="Custom Barn Door">Build a Barn Door</button></article><article><span class="studio-icon">▤</span><h3>Bathroom Design</h3><p>Plan vanity styles, wood finishes and project details.</p><button type="button" class="btn gold" data-type="Bathroom Remodel">Design Your Bathroom</button></article></div><div class="configurator" id="configurator" hidden><h3 id="config-title">Your Design Selections</h3><div class="config-fields"><label>Wood species<select id="wood"><option>White Oak</option><option>Maple</option><option>Mahogany</option><option>Pecky Cypress</option><option>Paint Grade</option></select></label><label>Finish<select id="finish"><option>Natural Clear</option><option>Warm Walnut</option><option>Dark Espresso</option><option>Painted White</option><option>Custom Finish</option></select></label><label>Design style<select id="pattern"><option>Traditional Inset</option><option>Modern Shaker</option><option>Herringbone</option><option>Chevron</option><option>Custom Pattern</option></select></label><label>Approximate dimensions<input maxlength="200" id="dimensions" placeholder="e.g. 36 × 84 inches or room dimensions"></label></div><label>Project notes<textarea maxlength="2000" id="design-notes" placeholder="Describe your project..."></textarea></label><div class="config-actions"><button type="button" class="btn gold" id="copy-design">Copy Design Summary</button><a class="btn outline" href="#contact">Discuss My Project</a></div><p id="design-status" role="status" aria-live="polite"></p></div><p class="studio-note">Design selections are planning tools, not a photorealistic 3D preview or a submitted quote. Contact us for measurements and pricing.</p></section><section id="services" class="services">
   <article><b>Custom Cabinetry</b><span>Built-ins, vanities & specialty pieces</span></article>
   <article><b>Kitchen Remodeling</b><span>Cabinetry, trim & complete transformations</span></article>
   <article><b>Bathroom Remodeling</b><span>Vanities, tile & finish work</span></article>
@@ -74,19 +74,24 @@
   <div><p class="eyebrow dark">LET'S BUILD SOMETHING GREAT</p><h2 id="door-quote">Request a Custom Quote</h2><p>For the fastest response, call <a href="tel:+16015045311">601-504-5311</a>.</p></div>
   <form id="quote-form">
     <div class="formgrid">
-      <input name="name" placeholder="Name" required>
-      <input name="phone" placeholder="Phone" required>
-      <input name="email" type="email" placeholder="Email">
-      <input name="size" placeholder="Door Opening Size (Width × Height)">
-      <select name="project"><option>Type of Project</option><option>Custom Barn Door</option><option>Custom Cabinetry</option><option>Kitchen Remodel</option><option>Bathroom Remodel</option><option>Other Construction</option></select>
-      <textarea name="details" placeholder="Tell us about your project, wood preference or design ideas..."></textarea>
+      <label>Your name<input name="name" autocomplete="name" maxlength="120" required></label>
+      <label>Phone<input name="phone" type="tel" autocomplete="tel" maxlength="40" required></label>
+      <label>Email<input name="email" type="email" autocomplete="email" maxlength="254" required></label>
+      <label>Project location<input name="location" autocomplete="address-level2" maxlength="200" placeholder="City or town, Mississippi" required></label>
+      <label>Project type<select name="project" required><option value="">Choose your project</option><option>Custom Barn Door</option><option>Custom Cabinetry</option><option>Kitchen Remodel</option><option>Bathroom Remodel</option><option>Other Construction</option></select></label>
+      <label>Approximate dimensions<input name="size" maxlength="200" placeholder="Optional — width × height, with units"></label>
+      <label class="full">Project details<textarea name="details" maxlength="4000" required placeholder="Tell us what you would like built, your timeline and any design ideas."></textarea></label>
     </div>
-    <button class="btn gold" type="submit">Prepare Quote Request</button><p id="quote-status" role="status" aria-live="polite"></p><p class="fine">This prepares your request for copying or sharing. It does not send it automatically; call us to arrange your estimate.</p>
+    <label class="consent"><input type="checkbox" name="consent" required> I agree that French Vanilla may contact me about this project using the details above.</label>
+    <button class="btn gold" type="submit">Send Quote Request</button>
+    <p id="quote-status" role="status" aria-live="polite"></p>
+    <p class="fine">Your contact details and project description are saved privately for our team to review. This request is not a price or a booking. Approximate measurements must be confirmed before pricing.</p>
+    <noscript>Please call <a href="tel:+16015045311">601-504-5311</a> to request your quote.</noscript>
   </form>
 </section>
 </main>
 
-<footer><div>French Vanilla Custom Cabinetry & Construction LLC</div><div>Quality Craftsmanship • Built to Last</div><a href="tel:+16015045311">601-504-5311</a></footer>
+<footer><a href="owner.html">Owner inbox</a><div>French Vanilla Custom Cabinetry & Construction LLC</div><div>Quality Craftsmanship • Built to Last</div><a href="tel:+16015045311">601-504-5311</a></footer>
 <script>
 (() => {
 let selectedType = 'Custom Cabinetry';
@@ -103,13 +108,7 @@ $('copy-design').addEventListener('click', async () => {
  const done = await copy(summary);
  $('design-status').textContent = done ? 'Design summary copied. Call 601-504-5311 to discuss your project.' : 'Copy your design summary and call 601-504-5311.';
 });
-$('quote-form').addEventListener('submit', async event => {
- event.preventDefault();
- const fields = new FormData(event.currentTarget);
- const summary = 'French Vanilla — Quote Request\n' + Array.from(fields.entries()).map(([k,v]) => `${k}: ${v}`).join('\n');
- const done = await copy(summary);
- $('quote-status').textContent = done ? 'Quote details copied. Please call 601-504-5311 to submit your request.' : 'Copy your quote details and call 601-504-5311.';
-});
+
 })();
-</script></body>
+</script><script type="module" src="quote-form.mjs"></script></body>
 </html>
