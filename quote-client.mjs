@@ -23,7 +23,7 @@ export function buildQuote(fields, id, design = null) {
     project_type: fields.project,
     project_description: clean(fields.details, 4000, 'your project details', true),
     measurements: { customer_supplied: clean(fields.size, 200, 'dimensions'), verified: false },
-    design_options: { source: 'french-vanilla-website', location, contact_consent: true, design },
+    design_options: { source: 'french-vanilla-website', business_contact_email: 'frenchvanillaconstruction@gmail.com', location, contact_consent: true, design },
     status: 'new'
   };
 }
