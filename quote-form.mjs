@@ -1,6 +1,9 @@
 import { buildQuote, submitQuote } from './quote-client.mjs';
 const form = document.getElementById('quote-form');
 const status = document.getElementById('quote-status');
+const requestedProject = new URLSearchParams(window.location.search).get('project');
+const projectSelect = form.elements.namedItem('project');
+if ([...projectSelect.options].some(option => option.value === requestedProject)) projectSelect.value = requestedProject;
 let pending = false;
 let submitted = false;
 const requestId = crypto.randomUUID();
@@ -34,3 +37,4 @@ form.addEventListener('submit', async event => {
     button.disabled = submitted;
   }
 });
+
