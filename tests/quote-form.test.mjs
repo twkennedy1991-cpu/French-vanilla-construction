@@ -226,3 +226,52 @@ test('invalid incoming layouts cannot open the editor and valid old links edit w
  const q=page(t,()=>assert.fail('no send'),'?layout='+encodeURIComponent(JSON.stringify(old)));q.document.getElementById('quote-edit-layout').click();editField(q,'width','180');applyEdit(q);
  assert.equal(JSON.parse(new URL(q.window.location.href).searchParams.get('layout')).schema,'fv.layout.v1');
 });
+
+test('customers can start a layout inline without losing quote fields, choosing inclusion, storing data or sending',t=>{
+ const p=page(t,()=>assert.fail('planning must not send'));const url=p.window.location.href;
+ p.form.elements.namedItem('project').value='';
+ const contact=p.form.elements.namedItem('email').value;
+ p.document.getElementById('quote-start-layout').click();assert.equal(p.document.getElementById('quote-layout-editor').open,true);
+ editField(p,'width','180.25');p.document.getElementById('quote-layout-cancel').click();assert.equal(p.window.location.href,url);assert.equal(p.document.getElementById('quote-layout').hidden,true);assert.equal(p.document.activeElement,p.document.getElementById('quote-start-layout'));
+ p.document.getElementById('quote-start-layout').click();editField(p,'width','168.25');applyEdit(p);
+ assert.equal(p.form.elements.namedItem('email').value,contact);assert.equal(p.form.elements.namedItem('project').value,'Custom Cabinetry');assert.equal(p.document.getElementById('quote-include-layout').checked,false);assert.equal(p.document.getElementById('quote-include-layout').disabled,false);
+ assert.equal(p.document.getElementById('quote-start-layout').hidden,true);assert.equal(p.document.activeElement,p.document.getElementById('quote-edit-layout'));assert.match(p.document.getElementById('quote-layout-summary').textContent,/168.25/);
+ assert.equal(p.window.localStorage.length,0);assert.equal(p.window.sessionStorage.length,0);
+});
+test('normal studio planner clicks open inline while modified clicks retain the standalone link',t=>{
+ const p=page(t,()=>assert.fail('no send'));const link=p.document.querySelector('[data-start-layout]');
+ const modified=new p.window.MouseEvent('click',{bubbles:true,cancelable:true,ctrlKey:true});link.dispatchEvent(modified);assert.equal(modified.defaultPrevented,false);assert.equal(p.document.getElementById('quote-layout-editor').hidden,true);
+ const normal=new p.window.MouseEvent('click',{bubbles:true,cancelable:true});link.dispatchEvent(normal);assert.equal(normal.defaultPrevented,true);assert.equal(p.document.getElementById('quote-layout-editor').hidden,false);
+ p.document.getElementById('quote-layout-cancel').click();assert.equal(p.document.activeElement,link);
+});
+test('remove and restore retain exact concept and customer selections but require inclusion again',async t=>{
+ const payloads=[];const p=page(t,async q=>payloads.push(q),editingQuery);
+ p.document.querySelector('[data-type="Kitchen Cabinetry"]').click();p.document.getElementById('use-design').click();p.document.getElementById('design-notes').value='Preserve maple trim.';
+ p.document.getElementById('quote-include-layout').checked=true;const original=p.document.getElementById('quote-layout-summary').textContent;
+ p.document.getElementById('quote-remove-layout').click();assert.equal(p.document.getElementById('quote-layout').hidden,true);assert.equal(new URL(p.window.location.href).searchParams.has('layout'),false);assert.equal(p.document.getElementById('quote-include-layout').checked,false);assert.equal(p.document.getElementById('quote-include-layout').disabled,true);
+ assert.equal(p.document.getElementById('quote-include-design').checked,true);assert.equal(p.document.getElementById('design-notes').value,'Preserve maple trim.');assert.equal(p.form.elements.namedItem('email').value,'test@example.invalid');
+ p.document.getElementById('quote-restore-layout').click();assert.equal(p.document.getElementById('quote-layout-summary').textContent,original);assert.deepEqual(JSON.parse(new URL(p.window.location.href).searchParams.get('layout')),editingLayout);assert.equal(p.document.getElementById('quote-include-layout').checked,false);
+ p.submit();await tick();assert.equal(payloads.length,1);assert.equal(payloads[0].design_options.design.notes,'Preserve maple trim.');
+});
+test('creating a replacement clears the removed concept; malformed concepts can be removed explicitly',t=>{
+ const p=page(t,()=>assert.fail('no send'),editingQuery);p.document.getElementById('quote-remove-layout').click();p.document.getElementById('quote-start-layout').click();editField(p,'width','200');applyEdit(p);assert.equal(p.document.getElementById('quote-restore-layout').hidden,true);assert.match(p.document.getElementById('quote-layout-summary').textContent,/200 × 120/);
+ const bad=page(t,()=>assert.fail('no send'),'?layout=invalid');bad.document.getElementById('quote-remove-layout').click();assert.equal(new URL(bad.window.location.href).searchParams.has('layout'),false);assert.equal(bad.document.getElementById('quote-restore-layout').hidden,true);bad.document.getElementById('quote-start-layout').click();applyEdit(bad);assert.equal(bad.document.getElementById('quote-include-layout').disabled,false);
+});
+test('submission locking fences create/remove/restore and studio link navigation',async t=>{
+ let finish;const p=page(t,()=>new Promise(resolve=>{finish=resolve;}),editingQuery);p.document.getElementById('quote-remove-layout').click();const before=p.window.location.href;p.submit();
+ for(const id of ['quote-start-layout','quote-restore-layout','quote-remove-layout']){assert.equal(p.document.getElementById(id).disabled,true);p.document.getElementById(id).dispatchEvent(new p.window.Event('click'));}
+ const e=new p.window.MouseEvent('click',{bubbles:true,cancelable:true});p.document.querySelector('[data-start-layout]').dispatchEvent(e);assert.equal(e.defaultPrevented,true);assert.equal(p.document.getElementById('quote-layout-editor').hidden,true);assert.equal(p.window.location.href,before);
+ finish();await tick();p.document.getElementById('quote-restore-layout').dispatchEvent(new p.window.Event('click'));assert.equal(p.window.location.href,before);
+});
+test('reference copying is enabled only after a settled attempt and never confirms failed delivery',async t=>{
+ let fail;const p=page(t,()=>new Promise((_,reject)=>{fail=reject;}));let copied=[];p.window.navigator.clipboard.writeText=async text=>copied.push(text);
+ const button=p.document.getElementById('quote-copy-reference');button.dispatchEvent(new p.window.Event('click'));assert.equal(copied.length,0);assert.equal(button.hidden,true);
+ p.submit();button.dispatchEvent(new p.window.Event('click'));assert.equal(copied.length,0);assert.equal(button.disabled,true);
+ fail(Error('offline'));await tick();button.click();await tick();assert.deepEqual(copied,[reference]);assert.match(p.status.textContent,/could not confirm/);assert.match(p.document.getElementById('quote-reference-status').textContent,/does not submit or confirm delivery/);
+ p.window.navigator.clipboard.writeText=async()=>{throw Error('blocked');};button.click();await tick();assert.match(p.document.getElementById('quote-reference-status').textContent,/could not be copied/);assert.match(p.status.textContent,/could not confirm/);
+});
+test('reference copy completes after success without resending; late copy is fenced by retries and page leave',async t=>{
+ let calls=0;const p=page(t,async()=>{calls++;});p.submit();await tick();let finish;p.window.navigator.clipboard.writeText=()=>new Promise(resolve=>{finish=resolve;});p.document.getElementById('quote-copy-reference').click();p.window.dispatchEvent(new p.window.Event('pagehide'));finish();await tick();assert.equal(p.document.getElementById('quote-reference-status').textContent,'');assert.equal(calls,1);
+ p.window.navigator.clipboard.writeText=async()=>{};p.document.getElementById('quote-copy-reference').click();await tick();assert.match(p.document.getElementById('quote-reference-status').textContent,/copied/);assert.equal(calls,1);assert.match(p.status.textContent,/received for review/);
+ let reject;const q=page(t,()=>new Promise((_,fail)=>{reject=fail;}));q.submit();reject(Error('offline'));await tick();let done;q.window.navigator.clipboard.writeText=()=>new Promise(resolve=>{done=resolve;});q.document.getElementById('quote-copy-reference').click();q.submit();done();await tick();assert.equal(q.document.getElementById('quote-reference-status').textContent,'');reject(Error('offline'));await tick();
+});

@@ -7,7 +7,8 @@ export function setupQuoteLayoutEditor({ document, window, read, apply }) {
   const fields = get('quote-layout-edit-fields'), spaces = get('quote-layout-edit-spaces');
   const status = get('quote-layout-edit-status'), preview = get('quote-layout-edit-preview');
   const save = get('quote-layout-apply'), add = get('quote-layout-add-space');
-  let locked = false, active = false, candidate = null;
+  let locked = false, active = false, candidate = null, opener = button;
+  const create = get('quote-start-layout'), launchers = [...document.querySelectorAll('[data-start-layout]')];
   function field(parent, text, key, value, options) {
     const label = document.createElement('label');label.textContent = text;
     const control = document.createElement(options ? 'select' : 'input');control.dataset.layoutField = key;
@@ -53,11 +54,11 @@ export function setupQuoteLayoutEditor({ document, window, read, apply }) {
     active = false;candidate = null;
     if (dialog.open && typeof dialog.close === 'function') dialog.close();
     dialog.removeAttribute('open');dialog.hidden = true;fields.replaceChildren();spaces.replaceChildren();preview.replaceChildren();
-    if (!locked) button.focus();
+    if (!locked) (opener?.hidden ? button : opener)?.focus();
   }
-  button.addEventListener('click', () => {
-    if (locked || active || !read()) return;
-    const layout = readLayout(read());
+  function open(value, source) {
+    if (locked || active) return;
+    const layout = readLayout(value);opener = source;
     fields.replaceChildren();spaces.replaceChildren();
     field(fields,'Layout shape','shape',layout.shape,[['straight','Straight'],['L','L-shaped'],['U','U-shaped']]);
     for (const [key,text,min,max] of [['width','Room width (in)',72,360],['depth','Room depth (in)',72,360],['cabinetDepth','Cabinet depth (in)',12,30],['cabinetHeight','Cabinet height (in)',24,42],['moduleWidth','Nominal module width (in)',12,48]]) {
@@ -67,6 +68,12 @@ export function setupQuoteLayoutEditor({ document, window, read, apply }) {
     active = true;dialog.hidden = false;
     if (typeof dialog.showModal === 'function') dialog.showModal();else dialog.setAttribute('open','');
     draw();fields.querySelector('select').focus();
+  }
+  button.addEventListener('click', () => { if (read()) open(read(),button); });
+  create.addEventListener('click', () => open(read() || DEFAULT_LAYOUT,create));
+  for (const link of launchers) link.addEventListener('click', event => {
+    if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();open(read() || DEFAULT_LAYOUT,link);
   });
   add.addEventListener('click', () => { if (!active || locked) return;const row=spaceRow();draw();row?.querySelector('select').focus(); });
   form.addEventListener('input',draw);form.addEventListener('change',draw);
@@ -78,5 +85,9 @@ export function setupQuoteLayoutEditor({ document, window, read, apply }) {
   get('quote-layout-cancel').addEventListener('click',close);
   dialog.addEventListener('cancel',event => { event.preventDefault();close(); });
   window.addEventListener('pagehide',close);
-  return { setLocked(value) { locked = Boolean(value);button.disabled = locked || !read();if (locked && active) close(); } };
+  return { cancel: close, setLocked(value) {
+    locked = Boolean(value);button.disabled = locked || !read();create.disabled = locked;create.hidden = Boolean(read());
+    for (const link of launchers) { if (locked) link.setAttribute('aria-disabled','true');else link.removeAttribute('aria-disabled'); }
+    if (locked && active) close();
+  } };
 }
