@@ -1,3 +1,4 @@
+import { scheduleHTML, scheduleCSV } from './layout-schedule.mjs';
 import { DEFAULT_LAYOUT, LAYOUT_V2, WALL_NAMES, readLayout, parseLayoutLink, layoutModel, layoutSummary, layoutQuoteLink, planSVG, perspectiveSVG } from './layout-planner.mjs';
 export function setupLayoutPlanner({ document, window }) {
   const get = id => document.getElementById(id), form = get('layout-controls'), status = get('layout-status');
@@ -36,6 +37,7 @@ export function setupLayoutPlanner({ document, window }) {
     share.disabled = true;print.disabled = true;reopen.removeAttribute('href');
     get('layout-plan').replaceChildren();get('layout-perspective').replaceChildren();
     get('layout-summary').textContent = '';get('layout-unused').textContent = '';get('layout-reserved-summary').replaceChildren();
+    get('layout-schedule').replaceChildren();get('layout-schedule-section').hidden = true;get('layout-schedule-download').disabled = true;
     status.textContent = message;
   }
   function draw() {
@@ -57,6 +59,7 @@ export function setupLayoutPlanner({ document, window }) {
       for (const space of [...model.reserved].sort((a,b) => a.number-b.number)) {
         const item = document.createElement('li');item.textContent = `S${space.number}: ${WALL_NAMES[space.wall]}, start ${space.offset} in, reserved width ${space.width} in.`;get('layout-reserved-summary').append(item);
       }
+      get('layout-schedule').innerHTML = scheduleHTML(current);get('layout-schedule-section').hidden = false;get('layout-schedule-download').disabled = false;
       link.href = layoutQuoteLink(current);link.removeAttribute('aria-disabled');share.disabled = false;print.disabled = false;
       const url = new URL('kitchen-planner.html', window.location.href);url.searchParams.set('layout', JSON.stringify(current));reopen.href = url.href;
       status.textContent = 'Concept updated. Reserved spaces mark widths only. Unallocated space is not automatically filled. Verify dimensions, access and layout feasibility with French Vanilla.';
@@ -72,6 +75,17 @@ export function setupLayoutPlanner({ document, window }) {
   get('layout-reset').addEventListener('click', () => {
     if (!window.confirm('Reset only this layout concept to the starting dimensions?')) return;
     populate(DEFAULT_LAYOUT);get('layout-angle').value = '30';draw();
+  });
+  get('layout-schedule-download').addEventListener('click', () => {
+    if (!current) return;
+    let url, anchor;
+    try {
+      const csv = scheduleCSV(current);
+      url = window.URL.createObjectURL(new window.Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      anchor = document.createElement('a');anchor.href = url;anchor.download = 'french-vanilla-concept-schedule.csv';document.body.append(anchor);anchor.click();
+      status.textContent = 'Schedule download requested. Review this unverified concept with French Vanilla before pricing or fabrication.';
+    } catch { status.textContent = 'The schedule could not download. Your concept is retained; try your browser’s Print command for the concept review sheet.'; }
+    finally { anchor?.remove();if (url) window.setTimeout(() => window.URL.revokeObjectURL(url), 1000); }
   });
   print.addEventListener('click', () => {
     if (!current) return;

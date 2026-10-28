@@ -52,3 +52,8 @@
 .quote-layout-editor fieldset{min-width:0;margin:18px 0;border:1px solid #ad9d89}.quote-layout-editor button{min-height:44px;cursor:pointer}
 .quote-layout-edit-preview{display:grid;grid-template-columns:1fr 1fr;gap:12px}.quote-layout-edit-preview svg{width:100%;max-height:260px}
 @media(max-width:600px){#quote-layout-edit-fields,.quote-layout-edit-preview{grid-template-columns:1fr}.quote-layout-editor{padding:16px}}
+
+.layout-schedule{margin:24px 0;min-width:0}.layout-schedule h2{font-size:1.7rem}.layout-table-wrap{overflow-x:auto;max-width:100%;margin:16px 0}
+.layout-schedule table{border-collapse:collapse;width:100%;font-size:.9rem;background:#fffaf2}.layout-schedule caption{text-align:left;font-weight:bold;padding:8px 0}
+.layout-schedule td,.layout-schedule th{padding:10px;text-align:left;border:1px solid #cfbea9;vertical-align:top}.layout-schedule thead{background:#eee4d5}.layout-schedule details{margin:16px 0}.layout-schedule summary{cursor:pointer;font-weight:bold}
+@media print{.planner-page .layout-schedule{width:100%;break-inside:avoid;margin:0}.planner-page .layout-schedule h2{font-size:14pt}.planner-page .layout-schedule table{font-size:8pt}.planner-page .layout-schedule td,.planner-page .layout-schedule th{padding:5pt}.planner-page .layout-schedule-details,.planner-page #layout-schedule-download{display:none!important}.planner-page .layout-table-wrap{overflow:visible}}

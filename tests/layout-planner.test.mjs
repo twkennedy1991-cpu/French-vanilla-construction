@@ -1,3 +1,4 @@
+import { layoutSchedule, scheduleHTML, scheduleCSV } from '../layout-schedule.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Window } from 'happy-dom';
@@ -158,4 +159,48 @@ test('shared spaces reopen in order, support four rows, and reset removes only t
   p.get('layout-spaces').children[1].querySelector('button').click();assert.equal(p.get('space-add').disabled,false);
   assert.equal(p.get('layout-spaces').children[1].querySelector('legend').textContent,'Space 2');
   p.get('layout-reset').click();assert.equal(p.get('layout-spaces').children.length,0);assert.equal(p.get('layout-reserved-summary').children.length,0);
+});
+
+test('numbered cabinet schedule reconciles each run as an exact nonoverlapping partition', () => {
+ for(const shape of ['straight','L','U']) for(const width of [144,180.25,360]) {
+  const value={...DEFAULT_LAYOUT,shape,width,depth:360,moduleWidth:12,cabinetDepth:12,schema:'fv.layout.v2',spaces:[{wall:'back',offset:24.25,width:36},{wall:'back',offset:90.5,width:24}]};
+  const original=JSON.stringify(value), model=layoutModel(value), schedule=layoutSchedule(value);
+  assert.equal(JSON.stringify(value),original);assert.equal(schedule.rows.filter(r=>r.kind==='Cabinet').length,model.cabinets.length);
+  assert.equal(new Set(schedule.rows.map(r=>r.reference)).size,schedule.rows.length);
+  for(const run of schedule.runs){
+   let cursor=0;
+   for(const row of schedule.rows.filter(r=>r.wall===run.wall)) {assert.equal(row.offset,cursor);cursor+=row.width;}
+   assert.equal(cursor,run.length);assert.equal(run.count*run.width+run.reserved+run.unused,run.length);
+  }
+  for(const c of model.cabinets){
+   const row=schedule.rows.find(r=>r.reference===c.id);assert.equal(row.offset,c.offset);assert.equal(row.width,value.moduleWidth);assert.equal(row.depth,value.cabinetDepth);assert.equal(row.height,c.height);
+   assert.match(planSVG(value),new RegExp('>'+c.id+'</text>'));
+  }
+ }
+});
+test('schedule tables and CSV keep precise dimensions, distinguish gap types and reject invalid layouts', t => {
+ const value=reservedLayout([{wall:'left',offset:12.25,width:24}]);const schedule=layoutSchedule(value);
+ const w=new Window();t.after(()=>w.happyDOM.close());w.document.body.innerHTML=scheduleHTML(value);
+ assert.equal(w.document.querySelectorAll('tbody')[1].children.length,schedule.rows.length);
+ const csv=scheduleCSV(value),lines=csv.trim().split('\r\n');assert.equal(lines.length,schedule.rows.length+1);
+ assert.match(csv,/"S1","Reserved width","Left wall","12.25","24","",""/);
+ assert.match(csv,/"L1","Cabinet","Left wall","36.25","30","24","34.5"/);
+ assert.match(csv,/UNVERIFIED CONCEPT/);assert.match(csv,/"Room width \(in\)"/);assert.doesNotMatch(csv,/NaN|undefined|Infinity/);
+ for(const fn of [layoutSchedule,scheduleHTML,scheduleCSV])assert.throws(()=>fn({...DEFAULT_LAYOUT,width:0}));
+ assert.equal(layoutSchedule({...DEFAULT_LAYOUT,schema:'fv.layout.v2',shape:'straight',spaces:[{wall:'back',offset:0,width:144}]}).runs[0].count,0);
+});
+test('schedule download uses current geometry and invalid input fences removed download controls',async t=>{
+ const p=page(t);let blob,download,revoked;
+ p.window.URL.createObjectURL=value=>{blob=value;return 'blob:concept-test';};p.window.URL.revokeObjectURL=url=>{revoked=url;};
+ p.window.setTimeout=fn=>{fn();return 1;};
+ const original=p.window.HTMLAnchorElement.prototype.click;
+ p.window.HTMLAnchorElement.prototype.click=function(){download={href:this.href,name:this.download};};t.after(()=>{p.window.HTMLAnchorElement.prototype.click=original;});
+ const form=p.get('layout-controls');form.elements.namedItem('width').value='180.25';form.dispatchEvent(new p.window.Event('input'));
+ p.get('layout-schedule-download').click();assert.equal(download.name,'french-vanilla-concept-schedule.csv');assert.equal(revoked,'blob:concept-test');assert.match(await blob.text(),/180.25/);
+ assert.equal(p.get('layout-schedule-section').hidden,false);assert.match(p.get('layout-schedule').textContent,/Back wall/);
+ const prior=blob;form.elements.namedItem('width').value='0';form.dispatchEvent(new p.window.Event('input'));
+ p.get('layout-schedule-download').dispatchEvent(new p.window.Event('click'));assert.equal(blob,prior);assert.equal(p.get('layout-schedule-download').disabled,true);assert.equal(p.get('layout-schedule-section').hidden,true);assert.equal(p.get('layout-schedule').children.length,0);
+});
+test('download failures retain a valid concept with actionable feedback', t=>{
+ const p=page(t);p.window.URL.createObjectURL=()=>{throw Error('blocked');};p.get('layout-schedule-download').click();assert.match(p.get('layout-status').textContent,/could not download/);assert.ok(p.get('layout-plan').querySelector('svg'));
 });

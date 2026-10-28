@@ -43,17 +43,19 @@ export function parseLayoutLink(text) {
   return readLayout(value);
 }
 export function layoutModel(value) {
-  const layout = readLayout(value), cabinets = [], unused = [], reserved = [];
+  const layout = readLayout(value), cabinets = [], unused = [], reserved = [], unusedSegments = [];
   for (const run of layoutRuns(layout)) {
     const spaces = (layout.spaces || []).map((space,index) => ({ ...space, number: index + 1 })).filter(space => space.wall === run.wall).sort((a,b) => a.offset-b.offset);
-    let cursor = 0, spare = 0;
+    let cursor = 0, spare = 0, sequence = 0, unusedSequence = 0;
     function pack(end) {
       const count = Math.floor((end - cursor) / layout.moduleWidth);
       for (let i=0;i<count;i++) {
         const offset = cursor + i * layout.moduleWidth;
-        cabinets.push({ wall: WALL_NAMES[run.wall], x: run.x + (run.side ? 0 : offset), z: run.z + (run.side ? offset : 0), width: run.side ? layout.cabinetDepth : layout.moduleWidth, depth: run.side ? layout.moduleWidth : layout.cabinetDepth, height: layout.cabinetHeight });
+        cabinets.push({ id: run.wall[0].toUpperCase() + (++sequence), run: run.wall, offset, wall: WALL_NAMES[run.wall], x: run.x + (run.side ? 0 : offset), z: run.z + (run.side ? offset : 0), width: run.side ? layout.cabinetDepth : layout.moduleWidth, depth: run.side ? layout.moduleWidth : layout.cabinetDepth, height: layout.cabinetHeight });
       }
-      spare += end - cursor - count * layout.moduleWidth;
+      const remainder = end - cursor - count * layout.moduleWidth;
+      if (remainder > 0) unusedSegments.push({ id: 'U' + run.wall[0].toUpperCase() + (++unusedSequence), wall: run.wall, offset: cursor + count * layout.moduleWidth, width: remainder });
+      spare += remainder;
     }
     for (const space of spaces) {
       pack(space.offset);
@@ -63,7 +65,7 @@ export function layoutModel(value) {
     pack(run.length);
     unused.push({ wall: WALL_NAMES[run.wall], inches: spare });
   }
-  return { layout, cabinets, unused, reserved, openWidth: layout.width - (layout.shape === 'U' ? 2 : layout.shape === 'L' ? 1 : 0) * layout.cabinetDepth };
+  return { layout, cabinets, unused, reserved, unusedSegments, openWidth: layout.width - (layout.shape === 'U' ? 2 : layout.shape === 'L' ? 1 : 0) * layout.cabinetDepth };
 }
 export function layoutSummary(value) {
   const model = layoutModel(value), l = model.layout;
@@ -81,7 +83,7 @@ const n = value => Number(value.toFixed(3));
 export function planSVG(value) {
   const m = layoutModel(value), l = m.layout, margin = 24;
   const spaces = m.reserved.map(r => `<rect x="${r.x}" y="${r.z}" width="${r.planWidth}" height="${r.planDepth}" fill="#e0f2fe" stroke="#075985" stroke-width="1" stroke-dasharray="3 2"/><text x="${r.x+r.planWidth/2}" y="${r.z+r.planDepth/2}" text-anchor="middle" dominant-baseline="middle" font-size="8" fill="#075985">S${r.number}</text>`).join('');
-  const boxes = m.cabinets.map(c => `<rect x="${c.x}" y="${c.z}" width="${c.width}" height="${c.depth}" fill="#d6a96e" stroke="#3e3022" stroke-width="1"/>`).join('');
+  const boxes = m.cabinets.map(c => `<rect x="${c.x}" y="${c.z}" width="${c.width}" height="${c.depth}" fill="#d6a96e" stroke="#3e3022" stroke-width="1"/><text x="${c.x+c.width/2}" y="${c.z+c.depth/2}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.min(8,c.width/(c.id.length*.7),c.depth*.4)}" fill="#211b16">${c.id}</text>`).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Cabinet layout top view, all dimensions in inches" viewBox="-${margin} -${margin} ${l.width + 2 * margin} ${l.depth + 2 * margin}"><rect width="${l.width}" height="${l.depth}" fill="#faf7f0" stroke="#3e3022" stroke-width="2"/>${boxes}${spaces}<text x="${l.width / 2}" y="-8" text-anchor="middle" font-size="10" fill="#211b16">${l.width} in</text><text x="${l.width / 2}" y="${l.depth + 16}" text-anchor="middle" font-size="10" fill="#211b16">Room depth ${l.depth} in</text></svg>`;
 }
 export function perspectiveSVG(value, angle = 30) {
