@@ -32,3 +32,18 @@ test('never turns rejection or a network failure into confirmation and never ret
   assert.equal(calls, 1);
   await assert.rejects(submitQuote({}, async () => { throw new TypeError('offline'); }), /offline/);
 });
+
+test('design limits match private intake and accepted text is preserved', () => {
+  const limits = { project: 80, wood: 80, finish: 80, style: 80, dimensions: 200, notes: 2000 };
+  const design = Object.fromEntries(Object.entries(limits).map(([key, limit]) => [key, 'x'.repeat(limit)]));
+  const quote = buildQuote(fields, 'test-id', design);
+  assert.deepEqual(quote.design_options.design, design);
+  assert.notEqual(quote.design_options.design, design);
+  for (const [key, limit] of Object.entries(limits)) {
+    assert.throws(() => buildQuote(fields, 'test-id', { ...design, [key]: 'x'.repeat(limit + 1) }), /Please check/);
+    assert.throws(() => buildQuote(fields, 'test-id', { [key]: {} }), /Please check/);
+  }
+  for (const invalid of [[], 'notes', { unsupported: 'extra private context' }]) assert.throws(() => buildQuote(fields, 'test-id', invalid), /design selections/);
+  assert.equal(buildQuote(fields, 'test-id').design_options.design, null);
+  assert.equal(buildQuote(fields, 'test-id', { notes: '  Keep this note  ' }).design_options.design.notes, 'Keep this note');
+});
