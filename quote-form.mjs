@@ -1,5 +1,6 @@
 import { buildQuote, submitQuote } from './quote-client.mjs';
 import { setupQuoteDesign } from './quote-design.mjs';
+import { parseLayoutLink, layoutSummary, attachLayoutToDesign } from './layout-planner.mjs';
 
 export function setupQuoteForm({ document, window, send = submitQuote, requestId = window.crypto.randomUUID() }) {
   const form = document.getElementById('quote-form');
@@ -8,6 +9,20 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
   const projectSelect = form.elements.namedItem('project');
   if ([...projectSelect.options].some(option => option.value === requestedProject)) projectSelect.value = requestedProject;
   const designAttachment = setupQuoteDesign({ document, window, projectSelect });
+  let suppliedLayout = null;
+  const layoutParameter = new URLSearchParams(window.location.search).get('layout');
+  const layoutPanel = document.getElementById('quote-layout');
+  const includeLayout = document.getElementById('quote-include-layout');
+  if (layoutParameter !== null) {
+    layoutPanel.hidden = false;
+    try {
+      suppliedLayout = parseLayoutLink(layoutParameter);
+      document.getElementById('quote-layout-summary').textContent = layoutSummary(suppliedLayout);
+      includeLayout.disabled = false;
+    } catch {
+      document.getElementById('quote-layout-summary').textContent = 'This layout link could not be loaded. You can still describe your project below or return to the planner to create a new concept.';
+    }
+  }
   let pending = false;
   let submitted = false;
   form.addEventListener('submit', async event => {
@@ -15,7 +30,12 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
     if (pending || submitted || !form.reportValidity()) return;
     let quote;
     try {
-      const design = designAttachment.read();
+      let design = designAttachment.read();
+      if (includeLayout.checked) {
+        if (!suppliedLayout) throw new Error('Choose a valid planner layout before including it.');
+        if (projectSelect.value !== 'Custom Cabinetry') throw new Error('Choose Custom Cabinetry as the project type, or uncheck the layout concept.');
+        design = attachLayoutToDesign(design, suppliedLayout);
+      }
       quote = buildQuote(Object.fromEntries(new window.FormData(form)), requestId, design);
     } catch (error) {
       status.textContent = error.message;

@@ -130,3 +130,24 @@ test('pending submission locks customer and studio inputs then restores their or
   assert.equal(p.form.elements.namedItem('email').disabled, false);assert.equal(p.document.getElementById('wood').disabled, false);
   assert.equal(p.document.getElementById('quote-include-design').disabled, true);
 });
+
+test('incoming layout is shown but transmitted only after explicit inclusion',async t=>{
+ const {DEFAULT_LAYOUT}=await import('../layout-planner.mjs');
+ const query='?project=Custom%20Cabinetry&layout='+encodeURIComponent(JSON.stringify(DEFAULT_LAYOUT));
+ const payloads=[];const p=page(t,async quote=>payloads.push(quote),query);
+ assert.equal(p.document.getElementById('quote-layout').hidden,false);assert.equal(p.document.getElementById('quote-include-layout').checked,false);
+ p.submit();await tick();assert.equal(payloads[0].design_options.design,null);
+ const included=[];const other=page(t,async quote=>included.push(quote),query);other.document.getElementById('quote-include-layout').checked=true;
+ other.submit();await tick();assert.match(included[0].design_options.design.notes,/Customer layout concept \(unverified\)/);
+ assert.match(included[0].design_options.design.notes,/144 × 120/);assert.equal(included[0].design_options.design.project,'Kitchen Cabinetry');
+});
+test('layout service mismatches and overflowing combined notes cannot send, and invalid links keep ordinary inquiry available',async t=>{
+ const {DEFAULT_LAYOUT}=await import('../layout-planner.mjs');
+ const payloads=[];const p=page(t,async quote=>payloads.push(quote),'?layout='+encodeURIComponent(JSON.stringify(DEFAULT_LAYOUT)));
+ p.document.getElementById('quote-include-layout').checked=true;p.submit();await tick();assert.equal(payloads.length,0);assert.match(p.status.textContent,/Choose Custom Cabinetry/);
+ p.document.querySelector('[data-type="Kitchen Cabinetry"]').click();p.document.getElementById('use-design').click();p.document.getElementById('design-notes').value='x'.repeat(2000);
+ p.submit();await tick();assert.equal(payloads.length,0);assert.equal(p.document.getElementById('design-notes').value.length,2000);
+ const bad=[];const other=page(t,async quote=>bad.push(quote),'?layout=invalid');
+ assert.equal(other.document.getElementById('quote-include-layout').disabled,true);assert.match(other.document.getElementById('quote-layout-summary').textContent,/could not be loaded/);
+ other.submit();await tick();assert.equal(bad.length,1);assert.equal(bad[0].design_options.design,null);
+});

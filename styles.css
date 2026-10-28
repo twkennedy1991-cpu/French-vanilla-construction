@@ -14,3 +14,25 @@
 .service-hero{padding:80px 7%;background:#211b16;color:#fff}.service-hero h1{font:normal clamp(2.4rem,6vw,4.5rem)/1.1 Georgia,serif;max-width:900px;margin:18px 0}.service-hero p{max-width:720px;line-height:1.7}.service-section{padding:60px 7%;max-width:1400px;margin:auto}.service-section h2{font:normal clamp(2rem,4vw,3rem) Georgia,serif}.service-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}.service-grid article{padding:25px;border-top:2px solid #a8783d;background:#fffaf2}.service-grid h3{font:normal 1.5rem Georgia,serif;margin-top:0}.service-section p,.service-section li{line-height:1.7}.service-section li{margin-bottom:12px}.service-section img{display:block;width:100%;max-width:620px;height:auto}.service-section figcaption{font-size:.9rem;line-height:1.6;margin-top:12px}.service-section figure{margin:0}.service-section details{padding:18px 0;border-bottom:1px solid #c9b9a6}.service-section summary{font-weight:bold;cursor:pointer}.service-cta{background:#eee4d5;max-width:none}.service-cta .outline{color:#17130f}
 @media(max-width:900px){.top{flex-wrap:wrap;gap:12px;position:relative}.top nav{display:flex;flex-basis:100%;gap:8px 18px;flex-wrap:wrap;padding-top:8px}.top nav a{padding:8px 0}.service-grid{grid-template-columns:1fr}.brand small{font-size:10px;letter-spacing:1px}.service-hero{padding:55px 7%}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+/* Customer layout concept planner */
+.planner-grid{display:grid;grid-template-columns:minmax(240px,.7fr) minmax(0,1.3fr);gap:36px;align-items:start}.planner-controls h2{margin-top:0}.planner-controls label{display:block;font-weight:bold;margin:16px 0}.planner-controls input,.planner-controls select{display:block;width:100%;padding:12px;margin-top:6px;border:1px solid #ad9d89;background:#fff;color:#17130f}.planner-results{min-width:0}.planner-results figure{margin:0 0 24px;background:#fffaf2;border:1px solid #cfbea9;padding:18px}.planner-results figcaption{font-weight:bold;margin:0 0 12px}.planner-drawing svg{display:block;width:100%;height:auto;max-height:440px;min-height:200px}.planner-results input[type=range]{display:block;width:100%;margin:16px 0;min-height:32px}.planner-summary{overflow-wrap:anywhere}.planner-secondary{background:#fffaf2;color:#17130f;cursor:pointer}.planner-results a[aria-disabled=true]{opacity:.6;cursor:default}.planner-controls #layout-status{line-height:1.6}#quote-layout{margin-top:24px;border-top:1px solid #ad9d89;padding-top:14px}#quote-layout p{line-height:1.6;text-align:left;overflow-wrap:anywhere}@media(max-width:850px){.planner-grid{grid-template-columns:1fr}.planner-drawing svg{min-height:160px}.planner-results figure{padding:12px}}
+
+/* Printable concept review sheet; no contact form or interactive controls. */
+.planner-print-heading,.planner-print-link{display:none}
+@media print{
+ @page{size:letter portrait;margin:0.5in}
+ .planner-page{background:white;color:#17130f;font-size:10pt}
+ .planner-page .skip-link,.planner-page .top,.planner-page .service-hero,.planner-page .planner-controls,.planner-page footer,.planner-page .actions,.planner-page .planner-results>p:last-child,.planner-page #layout-angle,.planner-page label[for=layout-angle]{display:none!important}
+ .planner-page .planner-grid{display:block;padding:0;max-width:none}
+ .planner-page .planner-results{display:flex;flex-wrap:wrap;gap:12pt}
+ .planner-page .planner-print-heading{display:block;order:-2;width:100%;border-bottom:2px solid #a8783d;padding-bottom:8pt}
+ .planner-page .planner-print-heading h2{font-size:20pt;margin:0 0 6pt}
+ .planner-page .planner-print-heading p{margin:3pt 0}
+ .planner-page .planner-results figure{width:calc(50% - 6pt);margin:0;padding:8pt;break-inside:avoid;background:white}
+ .planner-page .planner-results figcaption{font-size:10pt}
+ .planner-page .planner-drawing svg{height:2.5in;min-height:0;max-height:2.5in;print-color-adjust:exact}
+ .planner-page #layout-unused,.planner-page .planner-summary{width:100%;margin:0;line-height:1.5;break-inside:avoid}
+ .planner-page .planner-print-link{display:block;width:100%;margin:0}
+ .planner-page .planner-print-link a{color:#17130f;text-decoration:underline}
+}
