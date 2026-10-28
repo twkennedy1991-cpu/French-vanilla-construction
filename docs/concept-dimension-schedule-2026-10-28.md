@@ -1,0 +1,11 @@
+# Numbered cabinet concepts and dimension schedule
+
+Continues draft commit 67adbe97d70787dbc650c2d47efcfb52b464e40d. Back/left/right cabinet blocks have B/L/R reference codes in the top view, including in quote-layout editing. Codes describe the current concept only and may renumber after changes; they are not persistent inventory or fabrication IDs.
+
+The planner shows per-wall run lengths, cabinet counts and nominal W × D × H, reserved widths and unused widths. Expand the individual-position table for exact start offsets and widths for each cabinet, reserved space and unallocated segment. Side-run starts are measured after the back-run depth. All remaining run intervals are accounted for; nominal widths are never stretched to fit. Reserved and unused rows leave appliance depth/height blank rather than inferring them.
+
+Download schedule CSV uses the current validated concept and includes exact numeric geometry, room width/depth, shape and review notes. It contains no customer/contact fields or private fabrication code. Download failures preserve the concept and show a fallback. Invalid fields and malformed incoming links clear the schedule and disable download, including detached-control events. Object URLs are revoked after the download request. Browser download completion must be verified separately.
+
+Print styling includes the compact per-wall totals with the numbered top view and omits the expandable individual-position table and CSV button. This remains a contractor-review concept, not a cut list, pricing calculation, appliance specification or fabrication plan. No saved-layout schema, inquiry payload, database, provider or production-release change.
+
+Local validation: all 46 tests and five-page asset/module/syntax checks passed. New tests reconcile sorted schedule intervals as exact run partitions across all shapes and fractional dimensions; compare cabinet IDs and dimensions with drawing geometry; distinguish reserved/unused segments; check bounded HTML/CSV, whole-run gaps, invalid-layout refusal, current-state downloads, stale-control fencing and failure recovery. Existing cross-repository contract checks are run separately. Hosted CI/browser results are recorded in the PR after deployment.

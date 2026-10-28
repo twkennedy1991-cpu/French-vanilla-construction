@@ -130,3 +130,148 @@ test('pending submission locks customer and studio inputs then restores their or
   assert.equal(p.form.elements.namedItem('email').disabled, false);assert.equal(p.document.getElementById('wood').disabled, false);
   assert.equal(p.document.getElementById('quote-include-design').disabled, true);
 });
+
+test('incoming layout is shown but transmitted only after explicit inclusion',async t=>{
+ const {DEFAULT_LAYOUT}=await import('../layout-planner.mjs');
+ const query='?project=Custom%20Cabinetry&layout='+encodeURIComponent(JSON.stringify(DEFAULT_LAYOUT));
+ const payloads=[];const p=page(t,async quote=>payloads.push(quote),query);
+ assert.equal(p.document.getElementById('quote-layout').hidden,false);assert.equal(p.document.getElementById('quote-include-layout').checked,false);
+ p.submit();await tick();assert.equal(payloads[0].design_options.design,null);
+ const included=[];const other=page(t,async quote=>included.push(quote),query);other.document.getElementById('quote-include-layout').checked=true;
+ other.submit();await tick();assert.match(included[0].design_options.design.notes,/Customer layout concept \(unverified\)/);
+ assert.match(included[0].design_options.design.notes,/144 × 120/);assert.equal(included[0].design_options.design.project,'Kitchen Cabinetry');
+});
+test('layout service mismatches and overflowing combined notes cannot send, and invalid links keep ordinary inquiry available',async t=>{
+ const {DEFAULT_LAYOUT}=await import('../layout-planner.mjs');
+ const payloads=[];const p=page(t,async quote=>payloads.push(quote),'?layout='+encodeURIComponent(JSON.stringify(DEFAULT_LAYOUT)));
+ p.document.getElementById('quote-include-layout').checked=true;p.submit();await tick();assert.equal(payloads.length,0);assert.match(p.status.textContent,/Choose Custom Cabinetry/);
+ p.document.querySelector('[data-type="Kitchen Cabinetry"]').click();p.document.getElementById('use-design').click();p.document.getElementById('design-notes').value='x'.repeat(2000);
+ p.submit();await tick();assert.equal(payloads.length,0);assert.equal(p.document.getElementById('design-notes').value.length,2000);
+ const bad=[];const other=page(t,async quote=>bad.push(quote),'?layout=invalid');
+ assert.equal(other.document.getElementById('quote-include-layout').disabled,true);assert.match(other.document.getElementById('quote-layout-summary').textContent,/could not be loaded/);
+ other.submit();await tick();assert.equal(bad.length,1);assert.equal(bad[0].design_options.design,null);
+});
+
+test('reserved spaces reach inquiries only after inclusion and invalid spaces cannot attach',async t=>{
+ const {DEFAULT_LAYOUT}=await import('../layout-planner.mjs');
+ const layout={...DEFAULT_LAYOUT,schema:'fv.layout.v2',spaces:[{wall:'back',offset:30.25,width:36}]};
+ const query='?project=Custom%20Cabinetry&layout='+encodeURIComponent(JSON.stringify(layout));
+ const excluded=[];const a=page(t,async quote=>excluded.push(quote),query);a.submit();await tick();assert.equal(excluded[0].design_options.design,null);
+ const included=[];const b=page(t,async quote=>included.push(quote),query);b.document.getElementById('quote-include-layout').checked=true;b.submit();await tick();
+ assert.match(included[0].design_options.design.notes,/start 30.25 in, width 36 in/);assert.match(included[0].design_options.design.notes,/Reserved widths only/);
+ const bad={...layout,spaces:[{wall:'right',offset:0,width:30}]};const c=page(t,async()=>assert.fail('invalid layout must not attach'),'?project=Custom%20Cabinetry&layout='+encodeURIComponent(JSON.stringify(bad)));
+ assert.equal(c.document.getElementById('quote-include-layout').disabled,true);c.document.getElementById('quote-include-layout').checked=true;c.submit();await tick();assert.match(c.status.textContent,/valid planner layout/);
+});
+
+const editingLayout = {schema:'fv.layout.v2',shape:'U',width:168.25,depth:120,cabinetDepth:24,cabinetHeight:34.5,moduleWidth:30,spaces:[{wall:'back',offset:36.25,width:36}]};
+const editingQuery = '?project=Custom%20Cabinetry&layout='+encodeURIComponent(JSON.stringify(editingLayout));
+const editField = (p,key,value,spaceIndex=null) => {
+ const parent = spaceIndex === null ? p.document.getElementById('quote-layout-edit-fields') : p.document.getElementById('quote-layout-edit-spaces').children[spaceIndex];
+ const control=parent.querySelector(`[data-layout-field=${key}]`);control.value=value;control.dispatchEvent(new p.window.Event('input',{bubbles:true}));return control;
+};
+const applyEdit = p => p.document.getElementById('quote-layout-edit-form').dispatchEvent(new p.window.Event('submit',{bubbles:true,cancelable:true}));
+test('quote layout edits preserve all contact and studio fields, require renewed inclusion and update only geometry in the URL', async t=>{
+ const payloads=[];const p=page(t,async quote=>payloads.push(quote),editingQuery);
+ p.document.querySelector('[data-type="Kitchen Cabinetry"]').click();p.document.getElementById('use-design').click();p.document.getElementById('design-notes').value='Keep the trim.';
+ p.document.getElementById('quote-include-layout').checked=true;
+ const before=[...p.form.querySelectorAll('input[name],select[name],textarea[name]')].map(c=>[c.name,c.value,c.checked]);
+ p.document.getElementById('quote-edit-layout').click();assert.equal(p.document.getElementById('quote-layout-editor').open,true);
+ editField(p,'width','180.25');editField(p,'offset','42.5',0);applyEdit(p);
+ assert.equal(payloads.length,0);assert.equal(p.document.getElementById('quote-layout-editor').hidden,true);
+ assert.deepEqual([...p.form.querySelectorAll('input[name],select[name],textarea[name]')].map(c=>[c.name,c.value,c.checked]),before);
+ assert.equal(p.document.getElementById('design-notes').value,'Keep the trim.');assert.equal(p.document.getElementById('quote-include-layout').checked,false);
+ const url=new URL(p.window.location.href);assert.deepEqual([...url.searchParams.keys()],['project','layout']);assert.doesNotMatch(url.href,/Test|Customer|example.invalid%40|Keep/);
+ assert.equal(JSON.parse(url.searchParams.get('layout')).width,180.25);assert.equal(JSON.parse(url.searchParams.get('layout')).spaces[0].offset,42.5);
+ assert.match(p.document.getElementById('quote-layout-summary').textContent,/180.25 × 120/);
+ assert.equal(p.window.localStorage.length,0);assert.equal(p.window.sessionStorage.length,0);
+ p.document.getElementById('quote-include-layout').checked=true;p.submit();await tick();assert.match(payloads[0].design_options.design.notes,/start 42.5 in, width 36 in/);assert.match(payloads[0].design_options.design.notes,/Keep the trim/);
+});
+test('cancel button and Escape discard draft edits and preserve original inclusion and URL',t=>{
+ const p=page(t,()=>assert.fail('editing must not send'),editingQuery);const url=p.window.location.href;
+ p.document.getElementById('quote-include-layout').checked=true;
+ for(const kind of ['button','escape']){
+  p.document.getElementById('quote-edit-layout').click();editField(p,'width','190');
+  if(kind==='button')p.document.getElementById('quote-layout-cancel').click();else p.document.getElementById('quote-layout-editor').dispatchEvent(new p.window.Event('cancel',{cancelable:true}));
+  assert.equal(p.window.location.href,url);assert.equal(p.document.getElementById('quote-include-layout').checked,true);assert.match(p.document.getElementById('quote-layout-summary').textContent,/168.25 × 120/);
+  assert.equal(p.document.activeElement,p.document.getElementById('quote-edit-layout'));
+ }
+ p.document.getElementById('quote-edit-layout').click();assert.equal(p.document.querySelector('#quote-layout-edit-fields [data-layout-field=width]').value,'168.25');
+});
+test('quote editor rejects invalid dimensions and conflicting spaces without changing the original concept',t=>{
+ const p=page(t,()=>assert.fail('editing must not send'),editingQuery),url=p.window.location.href;
+ p.document.getElementById('quote-edit-layout').click();editField(p,'width','');applyEdit(p);
+ assert.equal(p.document.getElementById('quote-layout-apply').disabled,true);assert.equal(p.document.getElementById('quote-layout-edit-preview').children.length,0);assert.equal(p.window.location.href,url);
+ editField(p,'width','168.25');p.document.getElementById('quote-layout-add-space').click();editField(p,'offset','40',1);applyEdit(p);
+ assert.match(p.document.getElementById('quote-layout-edit-status').textContent,/overlap/);assert.equal(p.window.location.href,url);
+ p.document.getElementById('quote-layout-edit-spaces').children[1].querySelector('button').click();assert.equal(p.document.getElementById('quote-layout-apply').disabled,false);
+ editField(p,'wall','left',0);editField(p,'shape','straight');assert.match(p.document.getElementById('quote-layout-edit-status').textContent,/wall used/);
+ p.document.getElementById('quote-layout-edit-spaces').children[0].querySelector('button').click();applyEdit(p);
+ assert.equal(JSON.parse(new URL(p.window.location.href).searchParams.get('layout')).schema,'fv.layout.v1');
+});
+test('pending and confirmed submissions fence detached layout-editor actions; failures restore editing',async t=>{
+ for(const succeeds of [false,true]){
+  let finish,fail;const p=page(t,()=>new Promise((resolve,reject)=>{finish=resolve;fail=reject;}),editingQuery);
+  p.document.getElementById('quote-edit-layout').click();editField(p,'width','190');const detached=p.document.getElementById('quote-layout-apply');
+  const before=p.window.location.href;p.submit();assert.equal(p.document.getElementById('quote-edit-layout').disabled,true);assert.equal(p.document.getElementById('quote-layout-editor').hidden,true);
+  detached.dispatchEvent(new p.window.Event('click',{bubbles:true}));applyEdit(p);assert.equal(p.window.location.href,before);
+  if(succeeds)finish();else fail(Error('offline'));await tick();
+  assert.equal(p.document.getElementById('quote-edit-layout').disabled,succeeds);
+  if(succeeds){p.document.getElementById('quote-edit-layout').dispatchEvent(new p.window.Event('click'));assert.equal(p.document.getElementById('quote-layout-editor').hidden,true);}
+  else{p.document.getElementById('quote-edit-layout').click();assert.equal(p.document.getElementById('quote-layout-editor').hidden,false);}
+ }
+});
+test('invalid incoming layouts cannot open the editor and valid old links edit without migration',t=>{
+ const p=page(t,()=>assert.fail('no send'),'?layout=invalid');const edit=p.document.getElementById('quote-edit-layout');assert.equal(edit.disabled,true);edit.dispatchEvent(new p.window.Event('click'));assert.equal(p.document.getElementById('quote-layout-editor').hidden,true);
+ const old={...editingLayout,schema:'fv.layout.v1'};delete old.spaces;
+ const q=page(t,()=>assert.fail('no send'),'?layout='+encodeURIComponent(JSON.stringify(old)));q.document.getElementById('quote-edit-layout').click();editField(q,'width','180');applyEdit(q);
+ assert.equal(JSON.parse(new URL(q.window.location.href).searchParams.get('layout')).schema,'fv.layout.v1');
+});
+
+test('customers can start a layout inline without losing quote fields, choosing inclusion, storing data or sending',t=>{
+ const p=page(t,()=>assert.fail('planning must not send'));const url=p.window.location.href;
+ p.form.elements.namedItem('project').value='';
+ const contact=p.form.elements.namedItem('email').value;
+ p.document.getElementById('quote-start-layout').click();assert.equal(p.document.getElementById('quote-layout-editor').open,true);
+ editField(p,'width','180.25');p.document.getElementById('quote-layout-cancel').click();assert.equal(p.window.location.href,url);assert.equal(p.document.getElementById('quote-layout').hidden,true);assert.equal(p.document.activeElement,p.document.getElementById('quote-start-layout'));
+ p.document.getElementById('quote-start-layout').click();editField(p,'width','168.25');applyEdit(p);
+ assert.equal(p.form.elements.namedItem('email').value,contact);assert.equal(p.form.elements.namedItem('project').value,'Custom Cabinetry');assert.equal(p.document.getElementById('quote-include-layout').checked,false);assert.equal(p.document.getElementById('quote-include-layout').disabled,false);
+ assert.equal(p.document.getElementById('quote-start-layout').hidden,true);assert.equal(p.document.activeElement,p.document.getElementById('quote-edit-layout'));assert.match(p.document.getElementById('quote-layout-summary').textContent,/168.25/);
+ assert.equal(p.window.localStorage.length,0);assert.equal(p.window.sessionStorage.length,0);
+});
+test('normal studio planner clicks open inline while modified clicks retain the standalone link',t=>{
+ const p=page(t,()=>assert.fail('no send'));const link=p.document.querySelector('[data-start-layout]');
+ const modified=new p.window.MouseEvent('click',{bubbles:true,cancelable:true,ctrlKey:true});link.dispatchEvent(modified);assert.equal(modified.defaultPrevented,false);assert.equal(p.document.getElementById('quote-layout-editor').hidden,true);
+ const normal=new p.window.MouseEvent('click',{bubbles:true,cancelable:true});link.dispatchEvent(normal);assert.equal(normal.defaultPrevented,true);assert.equal(p.document.getElementById('quote-layout-editor').hidden,false);
+ p.document.getElementById('quote-layout-cancel').click();assert.equal(p.document.activeElement,link);
+});
+test('remove and restore retain exact concept and customer selections but require inclusion again',async t=>{
+ const payloads=[];const p=page(t,async q=>payloads.push(q),editingQuery);
+ p.document.querySelector('[data-type="Kitchen Cabinetry"]').click();p.document.getElementById('use-design').click();p.document.getElementById('design-notes').value='Preserve maple trim.';
+ p.document.getElementById('quote-include-layout').checked=true;const original=p.document.getElementById('quote-layout-summary').textContent;
+ p.document.getElementById('quote-remove-layout').click();assert.equal(p.document.getElementById('quote-layout').hidden,true);assert.equal(new URL(p.window.location.href).searchParams.has('layout'),false);assert.equal(p.document.getElementById('quote-include-layout').checked,false);assert.equal(p.document.getElementById('quote-include-layout').disabled,true);
+ assert.equal(p.document.getElementById('quote-include-design').checked,true);assert.equal(p.document.getElementById('design-notes').value,'Preserve maple trim.');assert.equal(p.form.elements.namedItem('email').value,'test@example.invalid');
+ p.document.getElementById('quote-restore-layout').click();assert.equal(p.document.getElementById('quote-layout-summary').textContent,original);assert.deepEqual(JSON.parse(new URL(p.window.location.href).searchParams.get('layout')),editingLayout);assert.equal(p.document.getElementById('quote-include-layout').checked,false);
+ p.submit();await tick();assert.equal(payloads.length,1);assert.equal(payloads[0].design_options.design.notes,'Preserve maple trim.');
+});
+test('creating a replacement clears the removed concept; malformed concepts can be removed explicitly',t=>{
+ const p=page(t,()=>assert.fail('no send'),editingQuery);p.document.getElementById('quote-remove-layout').click();p.document.getElementById('quote-start-layout').click();editField(p,'width','200');applyEdit(p);assert.equal(p.document.getElementById('quote-restore-layout').hidden,true);assert.match(p.document.getElementById('quote-layout-summary').textContent,/200 × 120/);
+ const bad=page(t,()=>assert.fail('no send'),'?layout=invalid');bad.document.getElementById('quote-remove-layout').click();assert.equal(new URL(bad.window.location.href).searchParams.has('layout'),false);assert.equal(bad.document.getElementById('quote-restore-layout').hidden,true);bad.document.getElementById('quote-start-layout').click();applyEdit(bad);assert.equal(bad.document.getElementById('quote-include-layout').disabled,false);
+});
+test('submission locking fences create/remove/restore and studio link navigation',async t=>{
+ let finish;const p=page(t,()=>new Promise(resolve=>{finish=resolve;}),editingQuery);p.document.getElementById('quote-remove-layout').click();const before=p.window.location.href;p.submit();
+ for(const id of ['quote-start-layout','quote-restore-layout','quote-remove-layout']){assert.equal(p.document.getElementById(id).disabled,true);p.document.getElementById(id).dispatchEvent(new p.window.Event('click'));}
+ const e=new p.window.MouseEvent('click',{bubbles:true,cancelable:true});p.document.querySelector('[data-start-layout]').dispatchEvent(e);assert.equal(e.defaultPrevented,true);assert.equal(p.document.getElementById('quote-layout-editor').hidden,true);assert.equal(p.window.location.href,before);
+ finish();await tick();p.document.getElementById('quote-restore-layout').dispatchEvent(new p.window.Event('click'));assert.equal(p.window.location.href,before);
+});
+test('reference copying is enabled only after a settled attempt and never confirms failed delivery',async t=>{
+ let fail;const p=page(t,()=>new Promise((_,reject)=>{fail=reject;}));let copied=[];p.window.navigator.clipboard.writeText=async text=>copied.push(text);
+ const button=p.document.getElementById('quote-copy-reference');button.dispatchEvent(new p.window.Event('click'));assert.equal(copied.length,0);assert.equal(button.hidden,true);
+ p.submit();button.dispatchEvent(new p.window.Event('click'));assert.equal(copied.length,0);assert.equal(button.disabled,true);
+ fail(Error('offline'));await tick();button.click();await tick();assert.deepEqual(copied,[reference]);assert.match(p.status.textContent,/could not confirm/);assert.match(p.document.getElementById('quote-reference-status').textContent,/does not submit or confirm delivery/);
+ p.window.navigator.clipboard.writeText=async()=>{throw Error('blocked');};button.click();await tick();assert.match(p.document.getElementById('quote-reference-status').textContent,/could not be copied/);assert.match(p.status.textContent,/could not confirm/);
+});
+test('reference copy completes after success without resending; late copy is fenced by retries and page leave',async t=>{
+ let calls=0;const p=page(t,async()=>{calls++;});p.submit();await tick();let finish;p.window.navigator.clipboard.writeText=()=>new Promise(resolve=>{finish=resolve;});p.document.getElementById('quote-copy-reference').click();p.window.dispatchEvent(new p.window.Event('pagehide'));finish();await tick();assert.equal(p.document.getElementById('quote-reference-status').textContent,'');assert.equal(calls,1);
+ p.window.navigator.clipboard.writeText=async()=>{};p.document.getElementById('quote-copy-reference').click();await tick();assert.match(p.document.getElementById('quote-reference-status').textContent,/copied/);assert.equal(calls,1);assert.match(p.status.textContent,/received for review/);
+ let reject;const q=page(t,()=>new Promise((_,fail)=>{reject=fail;}));q.submit();reject(Error('offline'));await tick();let done;q.window.navigator.clipboard.writeText=()=>new Promise(resolve=>{done=resolve;});q.document.getElementById('quote-copy-reference').click();q.submit();done();await tick();assert.equal(q.document.getElementById('quote-reference-status').textContent,'');reject(Error('offline'));await tick();
+});
