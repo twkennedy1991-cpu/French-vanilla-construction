@@ -1,3 +1,4 @@
+import { setupQuoteLayoutEditor } from './quote-layout-editor.mjs';
 import { buildQuote, submitQuote } from './quote-client.mjs';
 import { setupQuoteDesign } from './quote-design.mjs';
 import { parseLayoutLink, layoutSummary, attachLayoutToDesign } from './layout-planner.mjs';
@@ -23,6 +24,15 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
       document.getElementById('quote-layout-summary').textContent = 'This layout link could not be loaded. You can still describe your project below or return to the planner to create a new concept.';
     }
   }
+  const layoutEditor = setupQuoteLayoutEditor({ document, window, read: () => suppliedLayout, apply: layout => {
+    suppliedLayout = layout;
+    document.getElementById('quote-layout-summary').textContent = layoutSummary(layout);
+    includeLayout.checked = false;
+    status.textContent = 'Layout updated. Review it and check the inclusion box to add it to your inquiry. Your contact details are retained.';
+    const url = new URL(window.location.href);url.searchParams.set('layout', JSON.stringify(layout));
+    try { window.history.replaceState(window.history.state, '', url.href); } catch { /* Editing remains usable when history updates are unavailable. */ }
+  } });
+  layoutEditor.setLocked(false);
   let pending = false;
   let submitted = false;
   form.addEventListener('submit', async event => {
@@ -44,6 +54,7 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
     const button = form.querySelector('button[type="submit"]');
     const editable = [...new Set([...form.querySelectorAll('input,select,textarea'), ...document.querySelectorAll('#configurator input,#configurator select,#configurator textarea,#configurator button,[data-type]')])].map(control => [control, control.disabled]);
     for (const [control] of editable) control.disabled = true;
+    layoutEditor.setLocked(true);
     pending = true;
     button.disabled = true;
     form.setAttribute('aria-busy', 'true');
@@ -61,6 +72,7 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
       pending = false;
       for (const [control, disabled] of editable) control.disabled = disabled;
       button.disabled = submitted;
+      layoutEditor.setLocked(submitted);
       form.removeAttribute('aria-busy');
     }
   });

@@ -85,7 +85,7 @@
     </div>
     <label class="consent"><input type="checkbox" id="quote-include-design" name="attach_design" disabled aria-describedby="quote-design-summary"> Include my design studio selections</label>
     <p id="quote-design-summary" class="fine" role="status" aria-live="polite">Choose a design in the studio to include its selections.</p>
-    <section id="quote-layout" hidden><h3>Your layout concept</h3><p id="quote-layout-summary"></p><label class="consent"><input id="quote-include-layout" type="checkbox" disabled> Include this unverified layout concept in my inquiry</label><p class="fine">The concept is not included unless you check this box. French Vanilla must confirm measurements and feasibility before pricing.</p></section>
+    <section id="quote-layout" hidden><h3>Your layout concept</h3><p id="quote-layout-summary"></p><button id="quote-edit-layout" type="button" class="btn planner-secondary" disabled>Edit this layout</button><label class="consent"><input id="quote-include-layout" type="checkbox" disabled> Include this unverified layout concept in my inquiry</label><p class="fine">The concept is not included unless you check this box. French Vanilla must confirm measurements and feasibility before pricing.</p></section>
     <label class="consent"><input type="checkbox" name="consent" required> I agree that French Vanilla may contact me about this project using the details above.</label>
     <button class="btn gold" type="submit">Send Quote Request</button>
     <p id="quote-status" role="status" aria-live="polite"></p>
@@ -96,6 +96,10 @@
 </main>
 
 <footer><a href="mailto:frenchvanillaconstruction@gmail.com">frenchvanillaconstruction@gmail.com</a><a href="owner.html">Owner inbox</a><div>French Vanilla Custom Cabinetry & Construction LLC</div><div>Quality Craftsmanship • Built to Last</div><a href="tel:+16015045311">601-504-5311</a></footer>
+<dialog id="quote-layout-editor" class="quote-layout-editor" aria-labelledby="quote-layout-editor-title" aria-describedby="quote-layout-editor-help" hidden>
+<h2 id="quote-layout-editor-title">Edit your layout concept</h2><p id="quote-layout-editor-help">Your contact details stay in the quote form. Applying a layout change clears the inclusion checkbox so you can review it again. Reserved spaces are widths only; dimensions and feasibility require contractor review.</p>
+<form id="quote-layout-edit-form"><div id="quote-layout-edit-fields"></div><fieldset><legend>Reserved spaces</legend><p>Back-run starts are measured from the left. Side-run starts are measured after the back-run depth, toward the room.</p><div id="quote-layout-edit-spaces"></div><button id="quote-layout-add-space" type="button">Add reserved space</button></fieldset>
+<div id="quote-layout-edit-preview" class="quote-layout-edit-preview"></div><p id="quote-layout-edit-status" role="status" aria-live="polite"></p><div class="actions"><button id="quote-layout-apply" type="submit" class="btn gold" disabled>Apply layout changes</button><button id="quote-layout-cancel" type="button" class="btn planner-secondary">Cancel changes</button></div></form></dialog>
 <script type="module" src="quote-form.mjs"></script></body>
 </html>
 
