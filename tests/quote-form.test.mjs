@@ -45,7 +45,8 @@ test('rejected or timed out submissions preserve entries, reference and retry ow
 });
 test('invalid design never leaves the browser and can be corrected without losing form fields', async t => {
   const payloads = []; const p = page(t, async quote => { payloads.push(quote); });
-  p.document.getElementById('configurator').hidden = false;
+  p.document.querySelector('[data-type="Custom Barn Door"]').click();
+  p.document.getElementById('use-design').click();
   const notes = p.document.getElementById('design-notes'); notes.value = 'x'.repeat(2001);
   p.submit(); await tick(); assert.equal(payloads.length, 0); assert.match(p.status.textContent, /design notes/);
   assert.equal(notes.value.length, 2001); assert.equal(p.button.disabled, false);
@@ -63,4 +64,69 @@ test('only known project query values are selected', t => {
   assert.equal(known.form.elements.namedItem('project').value, 'Custom Cabinetry');
   const bad = page(t, async () => {}, '?project=Unlisted');
   assert.equal(bad.form.elements.namedItem('project').value, 'Custom Barn Door');
+});
+
+test('opening the studio does not silently attach design context or send a request', async t => {
+  const payloads = [];const p = page(t, async quote => payloads.push(quote));
+  p.document.querySelector('[data-type="Custom Barn Door"]').click();
+  assert.equal(payloads.length, 0);assert.equal(p.document.getElementById('quote-include-design').checked, false);
+  assert.match(p.document.getElementById('quote-design-summary').textContent, /not included/);
+  p.submit();await tick();assert.equal(payloads[0].design_options.design, null);
+});
+test('explicitly using each studio category attaches selections under the matching quote service', async t => {
+  for (const [type, service] of [['Kitchen Cabinetry', 'Custom Cabinetry'], ['Custom Barn Door', 'Custom Barn Door'], ['Bathroom Remodel', 'Bathroom Remodel']]) {
+    const payloads = [];const p = page(t, async quote => payloads.push(quote));
+    p.document.querySelector('[data-type="' + type + '"]').click();
+    p.document.getElementById('dimensions').value = '36 x 84 inches';
+    p.document.getElementById('design-notes').value = 'Keep the existing trim.';
+    p.document.getElementById('use-design').click();
+    assert.equal(payloads.length, 0);assert.match(p.document.getElementById('design-status').textContent, /No request has been sent/);
+    assert.equal(p.form.elements.namedItem('project').value, service);
+    assert.match(p.document.getElementById('quote-design-summary').textContent, /Included:/);
+    assert.equal(p.form.elements.namedItem('details').value, 'Please discuss a door for our room.');
+    p.submit();await tick();assert.equal(payloads.length, 1);
+    assert.equal(payloads[0].project_type, service);assert.equal(payloads[0].design_options.design.project, type);
+    assert.equal(payloads[0].design_options.design.notes, 'Keep the existing trim.');
+  }
+});
+test('changing the quote service requires reconciling or removing the design attachment', async t => {
+  const payloads = [];const p = page(t, async quote => payloads.push(quote));
+  p.document.querySelector('[data-type="Custom Barn Door"]').click();p.document.getElementById('use-design').click();
+  p.form.elements.namedItem('project').value = 'Custom Cabinetry';
+  p.form.elements.namedItem('project').dispatchEvent(new p.window.Event('change'));
+  assert.match(p.document.getElementById('quote-design-summary').textContent, /uncheck/);
+  p.submit();await tick();assert.equal(payloads.length, 0);assert.match(p.status.textContent, /Choose Custom Barn Door/);
+  const include = p.document.getElementById('quote-include-design');include.checked = false;include.dispatchEvent(new p.window.Event('change'));
+  p.submit();await tick();assert.equal(payloads.length, 1);assert.equal(payloads[0].design_options.design, null);
+  assert.equal(p.document.getElementById('configurator').hidden, false);
+});
+test('switching studio category resets attachment consent while retaining contact and project notes', t => {
+  const p = page(t, async () => assert.fail('studio actions must not send'));
+  p.document.querySelector('[data-type="Custom Barn Door"]').click();p.document.getElementById('use-design').click();
+  p.document.getElementById('design-notes').value = 'Owner supplied hardware.';
+  p.document.querySelector('[data-type="Kitchen Cabinetry"]').click();
+  assert.equal(p.document.getElementById('quote-include-design').checked, false);
+  assert.equal(p.document.getElementById('design-notes').value, 'Owner supplied hardware.');
+  assert.equal(p.form.elements.namedItem('email').value, 'test@example.invalid');
+  assert.match(p.document.getElementById('quote-design-summary').textContent, /not included/);
+});
+test('studio summary renders customer-entered text safely and copies without submitting or attaching', async t => {
+  const p = page(t, async () => assert.fail('copy must not send'));let copied;
+  p.window.navigator.clipboard.writeText = async text => { copied = text; };
+  p.document.querySelector('[data-type="Custom Barn Door"]').click();
+  const notes = p.document.getElementById('design-notes');notes.value = '<img src=x onerror=alert(1)>';notes.dispatchEvent(new p.window.Event('input'));
+  p.document.getElementById('copy-design').click();await tick();assert.match(copied, /<img src=x/);
+  assert.equal(p.document.getElementById('quote-include-design').checked, false);
+  p.document.getElementById('use-design').click();
+  assert.match(p.document.getElementById('quote-design-summary').textContent, /<img src=x/);
+  assert.equal(p.document.querySelectorAll('#quote-design-summary img').length, 0);
+});
+test('pending submission locks customer and studio inputs then restores their original disabled states', async t => {
+  let reject;const p = page(t, () => new Promise((resolve, fail) => { reject = fail; }));
+  assert.equal(p.document.getElementById('quote-include-design').disabled, true);
+  p.submit();assert.equal(p.form.elements.namedItem('email').disabled, true);
+  assert.equal(p.document.getElementById('wood').disabled, true);assert.equal(p.document.querySelector('[data-type]').disabled, true);
+  reject(new TypeError('offline'));await tick();
+  assert.equal(p.form.elements.namedItem('email').disabled, false);assert.equal(p.document.getElementById('wood').disabled, false);
+  assert.equal(p.document.getElementById('quote-include-design').disabled, true);
 });

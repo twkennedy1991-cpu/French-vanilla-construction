@@ -1,4 +1,5 @@
 import { buildQuote, submitQuote } from './quote-client.mjs';
+import { setupQuoteDesign } from './quote-design.mjs';
 
 export function setupQuoteForm({ document, window, send = submitQuote, requestId = window.crypto.randomUUID() }) {
   const form = document.getElementById('quote-form');
@@ -6,6 +7,7 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
   const requestedProject = new URLSearchParams(window.location.search).get('project');
   const projectSelect = form.elements.namedItem('project');
   if ([...projectSelect.options].some(option => option.value === requestedProject)) projectSelect.value = requestedProject;
+  const designAttachment = setupQuoteDesign({ document, window, projectSelect });
   let pending = false;
   let submitted = false;
   form.addEventListener('submit', async event => {
@@ -13,20 +15,15 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
     if (pending || submitted || !form.reportValidity()) return;
     let quote;
     try {
-      const design = document.getElementById('configurator').hidden ? null : {
-        project: document.getElementById('config-title').textContent,
-        wood: document.getElementById('wood').value,
-        finish: document.getElementById('finish').value,
-        style: document.getElementById('pattern').value,
-        dimensions: document.getElementById('dimensions').value,
-        notes: document.getElementById('design-notes').value
-      };
+      const design = designAttachment.read();
       quote = buildQuote(Object.fromEntries(new window.FormData(form)), requestId, design);
     } catch (error) {
       status.textContent = error.message;
       return;
     }
     const button = form.querySelector('button[type="submit"]');
+    const editable = [...new Set([...form.querySelectorAll('input,select,textarea'), ...document.querySelectorAll('#configurator input,#configurator select,#configurator textarea,#configurator button,[data-type]')])].map(control => [control, control.disabled]);
+    for (const [control] of editable) control.disabled = true;
     pending = true;
     button.disabled = true;
     form.setAttribute('aria-busy', 'true');
@@ -42,6 +39,7 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
       status.textContent = `We could not confirm your submission. Please call 601-504-5311 before resubmitting and mention reference ${requestId}. Your details are still here.`;
     } finally {
       pending = false;
+      for (const [control, disabled] of editable) control.disabled = disabled;
       button.disabled = submitted;
       form.removeAttribute('aria-busy');
     }
