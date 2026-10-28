@@ -1,0 +1,13 @@
+# Reserved widths in cabinet layout concepts
+
+Continues development commit 63622c455a3f9fd1e234ae09fe98e2526de210f2 on the existing planner draft. No production promotion, provider calls, database changes or customer submissions.
+
+Customers can add up to four reserved widths on cabinet runs. Each has an existing run, start offset and width in quarter-inch increments. Back-run offsets begin at its left edge; side-run offsets begin after the back-run depth. Widths must be at least six inches and remain inside the chosen run. Adjacent spaces are accepted; overlapping spaces or spaces on a wall absent from the current shape block geometry, sharing, printing and quote handoff until corrected or removed. Changing shapes retains entries for explicit correction.
+
+Cabinets fill each remaining run segment independently using the chosen nominal module width. Leftover lengths are totaled per wall, excluding reserved widths. Cabinet volumes stay within the room and outside the reserved areas. Blue dashed areas in the top and projected views identify reserved run widths. These are not modeled appliance volumes, installation specifications, service hookups, door swings or verified working clearances. Existing corner-access and fabrication exclusions remain.
+
+The bounded fv.layout.v2 link format carries spaces; existing fv.layout.v1 links remain supported unchanged. Layouts with no spaces use v1 in the editor. Exact widths and offsets appear in print, reopened concepts and the explicitly included quote notes. No additional customer data enters browser persistence or links. Existing quote field limits continue to reject overlong combined notes without truncation.
+
+Validation: all 34 website tests passed. New coverage includes geometric containment/non-overlap and per-wall length reconciliation with fractional offsets across twelve dimension combinations; full-run and adjacent gaps; malformed, excessive, conflicting and out-of-run inputs; v1 compatibility; bounded v2 links; editing/removal/reset; shape-change conflicts; and explicit quote inclusion. Seven offline contract checks passed actual website serialization through FURY/STARK using synthetic records and in-memory storage, including both layout versions. Module syntax checks passed.
+
+Browser verification was attempted against the local preview, but the cloud browser returned ERR_CONNECTION_REFUSED. No visual, print pagination or physical iPad acceptance is claimed. Hosted owner-inbox acceptance also remains pending. Source is saved to the existing draft development branch; the production website and JARVIS releases are unchanged.

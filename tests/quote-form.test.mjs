@@ -151,3 +151,14 @@ test('layout service mismatches and overflowing combined notes cannot send, and 
  assert.equal(other.document.getElementById('quote-include-layout').disabled,true);assert.match(other.document.getElementById('quote-layout-summary').textContent,/could not be loaded/);
  other.submit();await tick();assert.equal(bad.length,1);assert.equal(bad[0].design_options.design,null);
 });
+
+test('reserved spaces reach inquiries only after inclusion and invalid spaces cannot attach',async t=>{
+ const {DEFAULT_LAYOUT}=await import('../layout-planner.mjs');
+ const layout={...DEFAULT_LAYOUT,schema:'fv.layout.v2',spaces:[{wall:'back',offset:30.25,width:36}]};
+ const query='?project=Custom%20Cabinetry&layout='+encodeURIComponent(JSON.stringify(layout));
+ const excluded=[];const a=page(t,async quote=>excluded.push(quote),query);a.submit();await tick();assert.equal(excluded[0].design_options.design,null);
+ const included=[];const b=page(t,async quote=>included.push(quote),query);b.document.getElementById('quote-include-layout').checked=true;b.submit();await tick();
+ assert.match(included[0].design_options.design.notes,/start 30.25 in, width 36 in/);assert.match(included[0].design_options.design.notes,/Reserved widths only/);
+ const bad={...layout,spaces:[{wall:'right',offset:0,width:30}]};const c=page(t,async()=>assert.fail('invalid layout must not attach'),'?project=Custom%20Cabinetry&layout='+encodeURIComponent(JSON.stringify(bad)));
+ assert.equal(c.document.getElementById('quote-include-layout').disabled,true);c.document.getElementById('quote-include-layout').checked=true;c.submit();await tick();assert.match(c.status.textContent,/valid planner layout/);
+});

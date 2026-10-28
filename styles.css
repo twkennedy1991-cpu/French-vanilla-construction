@@ -36,3 +36,10 @@
  .planner-page .planner-print-link{display:block;width:100%;margin:0}
  .planner-page .planner-print-link a{color:#17130f;text-decoration:underline}
 }
+
+.planner-spaces{margin:24px 0;padding:14px;border:1px solid #ad9d89;min-width:0}
+.planner-spaces>legend{font-weight:bold}.planner-spaces p{font-size:.9rem}
+#layout-spaces fieldset{margin:16px 0;padding:12px;border:1px solid #cfbea9;min-width:0}
+#layout-spaces button{padding:10px;border:1px solid #ad9d89;font:inherit;min-height:44px}
+#layout-reserved-summary:empty{display:none}
+@media print{.planner-page #layout-reserved-summary{width:100%;margin:0;padding-left:18pt;break-inside:avoid;font-size:9pt}}

@@ -98,3 +98,64 @@ test('print failures keep the concept and give a browser-print fallback', t => {
   p.get('layout-print').click();assert.match(p.get('layout-status').textContent,/browser’s Print command/);
   assert.ok(p.get('layout-plan').querySelector('svg'));assert.equal(p.get('layout-print').disabled,false);
 });
+
+const reservedLayout = (spaces, extra={}) => ({...DEFAULT_LAYOUT, schema:'fv.layout.v2', shape:'U', spaces,...extra});
+const separate = (a,b) => a.x+a.width<=b.x || b.x+b.width<=a.x || a.z+a.depth<=b.z || b.z+b.depth<=a.z;
+test('reserved spaces split runs exactly, reconcile all lengths and never overlap cabinets', () => {
+  for (const width of [144,168.25,360]) for (const offset of [0,12.25,30,60.5]) {
+    const value=reservedLayout([{wall:'back',offset,width:36},{wall:'left',offset:12.25,width:24},{wall:'right',offset:30,width:30}],{width});
+    const original=JSON.stringify(value), m=layoutModel(value);
+    assert.equal(JSON.stringify(value),original);assert.equal(m.reserved.length,3);
+    for (const c of m.cabinets) {
+      assert.ok(c.x>=0 && c.z>=0 && c.x+c.width<=width && c.z+c.depth<=value.depth);
+      for (const gap of m.reserved) assert.ok(separate(c,{x:gap.x,z:gap.z,width:gap.planWidth,depth:gap.planDepth}));
+    }
+    for (let i=0;i<m.cabinets.length;i++) for (let j=i+1;j<m.cabinets.length;j++) assert.ok(separate(m.cabinets[i],m.cabinets[j]));
+    for (const [id,name,length] of [['back','Back wall',width],['left','Left wall',96],['right','Right wall',96]]) {
+      assert.equal(m.cabinets.filter(c=>c.wall===name).length*value.moduleWidth + m.unused.find(r=>r.wall===name).inches + value.spaces.filter(s=>s.wall===id).reduce((sum,s)=>sum+s.width,0),length);
+    }
+  }
+});
+test('adjacent and full-run spaces are valid; overlap, out-of-range and malformed spaces are refused', () => {
+  assert.equal(layoutModel(reservedLayout([{wall:'back',offset:0,width:144}])).cabinets.filter(c=>c.wall==='Back wall').length,0);
+  assert.equal(layoutModel(reservedLayout([{wall:'back',offset:0,width:24},{wall:'back',offset:24,width:30}])).reserved.length,2);
+  const good={wall:'back',offset:0,width:30};
+  for (const spaces of [null,{},Array(5).fill(good),[null],[{...good,width:5.75}],[{...good,offset:-.25}],[{...good,offset:120}],[{...good,width:'30'}],[{...good,width:NaN}],[{...good,offset:.1}],[{...good,wall:'ceiling'}],[{...good,html:'<script>'}],[good,{...good,offset:29.75}]]) assert.throws(()=>readLayout(reservedLayout(spaces)));
+  assert.throws(()=>readLayout(reservedLayout([{...good,wall:'left'}],{shape:'straight'})),/wall used/);
+  assert.throws(()=>readLayout({...DEFAULT_LAYOUT,spaces:[]}),/supported/);
+});
+test('v2 links, plan markers and bounded quote notes retain exact reserved-space measurements', () => {
+  const value=reservedLayout([{wall:'back',offset:10.25,width:36},{wall:'left',offset:0,width:24},{wall:'right',offset:6.5,width:30},{wall:'back',offset:80.5,width:24}]);
+  const link=new URL(layoutQuoteLink(value),'https://example.invalid/');
+  assert.deepEqual(parseLayoutLink(link.searchParams.get('layout')),value);assert.ok(link.searchParams.get('layout').length<1000);
+  const note=attachLayoutToDesign({notes:'Keep the trim.'},value).notes;
+  assert.match(note,/start 10.25 in, width 36 in/);assert.match(note,/Side-run starts/);assert.match(note,/Reserved widths only/);assert.ok(note.length<2000);
+  for (const n of [1,2,3,4]) assert.match(planSVG(value),new RegExp('S'+n+'</text>'));
+  for (const angle of [-60,0,60]) assert.doesNotMatch(perspectiveSVG(value,angle),/NaN|Infinity|undefined/);
+  assert.deepEqual(readLayout(DEFAULT_LAYOUT),DEFAULT_LAYOUT);
+});
+test('reserved-space editor changes geometry, blocks conflicting spaces and recovers without losing dimensions', t => {
+  const p=page(t), form=p.get('layout-controls');
+  p.get('space-add').click();let row=p.get('layout-spaces').firstElementChild;
+  assert.equal(p.document.activeElement,row.querySelector('select'));
+  const set=(row,key,value)=>{row.querySelector(`[data-space-field=${key}]`).value=value;form.dispatchEvent(new p.window.Event('input'));};
+  set(row,'offset','30.25');assert.match(p.get('layout-reserved-summary').textContent,/start 30.25 in/);
+  let layout=parseLayoutLink(new URL(p.get('layout-quote').href).searchParams.get('layout'));assert.equal(layout.schema,'fv.layout.v2');assert.equal(layout.spaces[0].offset,30.25);
+  set(row,'offset','');assert.equal(p.get('layout-print').disabled,true);set(row,'offset','30.25');assert.equal(p.get('layout-print').disabled,false);
+  p.get('space-add').click();set(p.get('layout-spaces').lastElementChild,'offset','40');assert.match(p.get('layout-status').textContent,/overlap/);
+  p.get('layout-spaces').lastElementChild.querySelector('button').click();assert.equal(p.get('layout-print').disabled,false);
+  set(row,'wall','left');form.elements.namedItem('shape').value='straight';form.dispatchEvent(new p.window.Event('change'));
+  assert.equal(p.get('layout-print').disabled,true);assert.match(p.get('layout-status').textContent,/wall used/);assert.equal(p.get('layout-spaces').children.length,1);
+  row.querySelector('button').click();assert.equal(p.get('layout-print').disabled,false);assert.equal(form.elements.namedItem('width').value,'144');
+  layout=parseLayoutLink(new URL(p.get('layout-quote').href).searchParams.get('layout'));assert.equal(layout.schema,'fv.layout.v1');
+});
+test('shared spaces reopen in order, support four rows, and reset removes only the concept', t => {
+  const value=reservedLayout([{wall:'back',offset:90,width:30},{wall:'left',offset:0,width:24},{wall:'back',offset:0,width:30},{wall:'right',offset:0,width:30}]);
+  const p=page(t,'?layout='+encodeURIComponent(JSON.stringify(value)));
+  assert.equal(p.get('layout-spaces').children.length,4);assert.equal(p.get('space-add').disabled,true);
+  assert.match(p.get('layout-reserved-summary').firstElementChild.textContent,/S1: Back wall, start 90 in/);
+  p.get('space-add').dispatchEvent(new p.window.Event('click'));assert.equal(p.get('layout-spaces').children.length,4);
+  p.get('layout-spaces').children[1].querySelector('button').click();assert.equal(p.get('space-add').disabled,false);
+  assert.equal(p.get('layout-spaces').children[1].querySelector('legend').textContent,'Space 2');
+  p.get('layout-reset').click();assert.equal(p.get('layout-spaces').children.length,0);assert.equal(p.get('layout-reserved-summary').children.length,0);
+});

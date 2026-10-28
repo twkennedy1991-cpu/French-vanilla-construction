@@ -38,8 +38,10 @@ for (const project of projects) {
 }
 
 // The public planner travels as bounded, explicitly unverified design notes.
-{
-  const layout = { ...DEFAULT_LAYOUT, shape: 'U', width: 168.25 };
+for (const layout of [
+  { ...DEFAULT_LAYOUT, shape: 'U', width: 168.25 },
+  { ...DEFAULT_LAYOUT, schema: 'fv.layout.v2', shape: 'U', width: 168.25, spaces: [{ wall: 'back', offset: 36.25, width: 36 }, { wall: 'left', offset: 0, width: 24 }, { wall: 'right', offset: 30, width: 30 }] }
+]) {
   const payload = buildQuote({ ...fields, details: 'Review this kitchen concept.', project: 'Custom Cabinetry' }, 'c819376a-48dd-4ed9-a221-a59f564d617b', attachLayoutToDesign({ notes: 'Keep the existing trim.' }, layout));
   const row = JSON.parse(JSON.stringify({ ...payload, created_at: '2026-10-27T12:00:00Z' }));
   const saved = new Map(), storage = { getItem: key => saved.get(key) ?? null, setItem: (key,value) => saved.set(key,value) }, scope = 'layout-contract';
@@ -48,5 +50,5 @@ for (const project of projects) {
   for (const text of [lead.notes,draft.document.intakeText]) {
     assert.ok(text.includes(layoutSummary(layout)));assert.ok(text.includes('Keep the existing trim.'));assert.ok(text.includes('unverified'));
   }
-  console.log('PASS layout concept → FURY → STARK: exact dimensions and owner notes retained');
+  console.log('PASS ' + layout.schema + ' layout concept → FURY → STARK: exact dimensions, spaces and owner notes retained');
 }
