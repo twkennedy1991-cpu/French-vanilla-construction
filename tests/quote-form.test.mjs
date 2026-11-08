@@ -244,6 +244,19 @@ test('normal studio planner clicks open inline while modified clicks retain the 
  const normal=new p.window.MouseEvent('click',{bubbles:true,cancelable:true});link.dispatchEvent(normal);assert.equal(normal.defaultPrevented,true);assert.equal(p.document.getElementById('quote-layout-editor').hidden,false);
  p.document.getElementById('quote-layout-cancel').click();assert.equal(p.document.activeElement,link);
 });
+test('applying a studio layout moves focus to the quote review and preserves the draft', t => {
+  const p = page(t, () => assert.fail('planning must not send'));
+  p.form.elements.namedItem('project').value = 'Custom Cabinetry';
+  p.document.querySelector('[data-start-layout]').click();
+  editField(p, 'width', '168.25');
+  applyEdit(p);
+
+  assert.equal(p.document.getElementById('quote-layout-editor').hidden, true);
+  assert.equal(p.document.activeElement.id, 'quote-edit-layout');
+  assert.match(p.document.getElementById('quote-layout-summary').textContent, /168\.25 × 120/);
+  assert.equal(p.document.getElementById('quote-include-layout').checked, false);
+  assert.equal(p.form.elements.namedItem('email').value, 'test@example.invalid');
+});
 test('remove and restore retain exact concept and customer selections but require inclusion again',async t=>{
  const payloads=[];const p=page(t,async q=>payloads.push(q),editingQuery);
  p.document.querySelector('[data-type="Kitchen Cabinetry"]').click();p.document.getElementById('use-design').click();p.document.getElementById('design-notes').value='Preserve maple trim.';
