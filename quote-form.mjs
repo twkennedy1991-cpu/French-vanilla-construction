@@ -43,14 +43,18 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
     control.setAttribute('aria-invalid', 'true');
     control.focus();
   }
-  function clearEditedFieldError({ target }) {
-    if (target === fieldError?.control) clearFieldError();
-  }
-  form.addEventListener('input', clearEditedFieldError);
-  form.addEventListener('change', clearEditedFieldError);
   let suppliedLayout = null, removedLayout = null, pending = false, submitted = false, attempted = false, referenceEpoch = 0;
   const layoutParameter = new URLSearchParams(window.location.search).get('layout');let hasLayout = layoutParameter !== null;
   const layoutPanel = get('quote-layout'), includeLayout = get('quote-include-layout'), copyReference = get('quote-copy-reference');
+  function clearLayoutFieldError() {
+    if (fieldError?.control === includeLayout) clearFieldError();
+  }
+  function clearEditedFieldError({ target }) {
+    if (target === fieldError?.control) clearFieldError();
+    else if (target === projectSelect && projectSelect.value === 'Custom Cabinetry') clearLayoutFieldError();
+  }
+  form.addEventListener('input', clearEditedFieldError);
+  form.addEventListener('change', clearEditedFieldError);
   if (hasLayout) {
     layoutPanel.hidden = false;
     try {
@@ -70,6 +74,7 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
     get('quote-restore-layout').disabled = pending || submitted || !removedLayout;
   }
   function showLayout(layout) {
+    clearLayoutFieldError();
     suppliedLayout = layout;hasLayout = true;layoutPanel.hidden = false;
     if (!projectSelect.value) projectSelect.value = 'Custom Cabinetry';
     get('quote-layout-summary').textContent = layoutSummary(layout);includeLayout.checked = false;includeLayout.disabled = false;
@@ -81,6 +86,7 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
   } });
   get('quote-remove-layout').addEventListener('click', () => {
     if (pending || submitted || !hasLayout) return;
+    clearLayoutFieldError();
     layoutEditor.cancel();removedLayout = suppliedLayout;suppliedLayout = null;hasLayout = false;
     layoutPanel.hidden = true;get('quote-layout-summary').textContent = '';includeLayout.checked = false;includeLayout.disabled = true;
     updateAddress();layoutControls();get('quote-start-layout').focus();
@@ -107,7 +113,9 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
       let design = designAttachment.read();
       if (includeLayout.checked) {
         if (!suppliedLayout) throw new Error('Choose a valid planner layout before including it.');
-        if (projectSelect.value !== 'Custom Cabinetry') throw new Error('Choose Custom Cabinetry as the project type, or uncheck the layout concept.');
+        if (projectSelect.value !== 'Custom Cabinetry') {
+          throw new QuoteValidationError('Choose Custom Cabinetry as the project type, or uncheck the layout concept.', includeLayout.id);
+        }
         design = attachLayoutToDesign(design, suppliedLayout);
       }
       quote = buildQuote(Object.fromEntries(new window.FormData(form)), requestId, design);

@@ -42,7 +42,7 @@ export function setupQuoteDesign({ document, window, projectSelect }) {
     if (!selected || studio.hidden) return;
     projectSelect.value = projectTypes[selected];
     include.checked = true;
-    refresh();
+    projectSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
     get('design-status').textContent = 'Selections added to the quote form below. Review your details and contact permission before sending. No request has been sent.';
     get('door-quote').focus({ preventScroll: true });
     get('contact').scrollIntoView?.({ block: 'start' });
