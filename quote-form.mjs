@@ -5,6 +5,7 @@ import { parseLayoutLink, layoutSummary, attachLayoutToDesign } from './layout-p
 
 export function setupQuoteForm({ document, window, send = submitQuote, requestId = window.crypto.randomUUID() }) {
   const get = id => document.getElementById(id), form = get('quote-form'), status = get('quote-status');
+  const button = form.querySelector('button[type="submit"]');
   const projectSelect = form.elements.namedItem('project');
   const requestedProject = new URLSearchParams(window.location.search).get('project');
   if ([...projectSelect.options].some(option => option.value === requestedProject)) projectSelect.value = requestedProject;
@@ -73,7 +74,6 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
       }
       quote = buildQuote(Object.fromEntries(new window.FormData(form)), requestId, design);
     } catch (error) { status.textContent = error.message;return; }
-    const button = form.querySelector('button[type="submit"]');
     const editable = [...new Set([...form.querySelectorAll('input,select,textarea'), ...document.querySelectorAll('#configurator input,#configurator select,#configurator textarea,#configurator button,[data-type]')])].map(control => [control, control.disabled]);
     for (const [control] of editable) control.disabled = true;
     pending = true;attempted = true;referenceEpoch++;copyReference.hidden = false;copyReference.disabled = true;
@@ -88,5 +88,7 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
       button.disabled = submitted;copyReference.disabled = false;layoutControls();form.removeAttribute('aria-busy');
     }
   });
+  status.textContent = '';
+  button.disabled = false;
 }
 if (typeof document !== 'undefined') setupQuoteForm({ document, window });
