@@ -5,7 +5,7 @@ import { parseLayoutLink, layoutSummary, attachLayoutToDesign } from './layout-p
 
 export function setupQuoteForm({ document, window, send = submitQuote, requestId = window.crypto.randomUUID() }) {
   const get = id => document.getElementById(id), form = get('quote-form');
-  const deliveryStatus = get('quote-status'), draftStatus = get('quote-draft-status');
+  const deliveryStatus = get('quote-status'), draftMessage = get('quote-draft-message'), fieldMessage = get('quote-field-error');
   const button = form.querySelector('button[type="submit"]');
   const projectSelect = form.elements.namedItem('project');
   const requestedProject = new URLSearchParams(window.location.search).get('project');
@@ -15,10 +15,10 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
   const descriptionIds = control => (control.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean);
   function clearFieldError() {
     if (!fieldError) return;
-    const { control, message, addedDescription, previousInvalid } = fieldError;
+    const { control, addedDescription, previousInvalid } = fieldError;
     fieldError = null;
     if (addedDescription) {
-      const remaining = descriptionIds(control).filter(id => id !== message.id);
+      const remaining = descriptionIds(control).filter(id => id !== fieldMessage.id);
       if (remaining.length) control.setAttribute('aria-describedby', remaining.join(' '));
       else control.removeAttribute('aria-describedby');
     }
@@ -26,20 +26,18 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
       if (previousInvalid === null) control.removeAttribute('aria-invalid');
       else control.setAttribute('aria-invalid', previousInvalid);
     }
-    message.remove();
+    fieldMessage.textContent = '';
   }
   function showDraftError(error) {
     clearFieldError();
     const control = error instanceof QuoteValidationError && error.field ? form.elements.namedItem(error.field) : null;
-    if (!control) { draftStatus.textContent = error.message;return; }
-    const message = document.createElement('span');
-    message.id = 'quote-field-error';
-    message.textContent = error.message;
-    draftStatus.replaceChildren(message);
+    if (!control) { draftMessage.textContent = error.message;return; }
+    draftMessage.textContent = '';
+    fieldMessage.textContent = error.message;
     const ids = descriptionIds(control);
-    const addedDescription = !ids.includes(message.id);
-    fieldError = { control, message, addedDescription, previousInvalid: control.getAttribute('aria-invalid') };
-    if (addedDescription) control.setAttribute('aria-describedby', [...ids, message.id].join(' '));
+    const addedDescription = !ids.includes(fieldMessage.id);
+    fieldError = { control, addedDescription, previousInvalid: control.getAttribute('aria-invalid') };
+    if (addedDescription) control.setAttribute('aria-describedby', [...ids, fieldMessage.id].join(' '));
     control.setAttribute('aria-invalid', 'true');
     control.focus();
   }
@@ -82,7 +80,7 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
   }
   const layoutEditor = setupQuoteLayoutEditor({ document, window, read: () => suppliedLayout, apply: layout => {
     removedLayout = null;showLayout(layout);
-    draftStatus.textContent = 'Layout updated. Review it and check the inclusion box to add it to your inquiry. Your contact details are retained.';
+    draftMessage.textContent = 'Layout updated. Review it and check the inclusion box to add it to your inquiry. Your contact details are retained.';
   } });
   get('quote-remove-layout').addEventListener('click', () => {
     if (pending || submitted || !hasLayout) return;
@@ -90,12 +88,12 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
     layoutEditor.cancel();removedLayout = suppliedLayout;suppliedLayout = null;hasLayout = false;
     layoutPanel.hidden = true;get('quote-layout-summary').textContent = '';includeLayout.checked = false;includeLayout.disabled = true;
     updateAddress();layoutControls();get('quote-start-layout').focus();
-    draftStatus.textContent = 'Layout removed from the current draft. Your contact details and design studio selections are retained.' + (removedLayout ? ' You can restore the removed layout on this page.' : '');
+    draftMessage.textContent = 'Layout removed from the current draft. Your contact details and design studio selections are retained.' + (removedLayout ? ' You can restore the removed layout on this page.' : '');
   });
   get('quote-restore-layout').addEventListener('click', () => {
     if (pending || submitted || !removedLayout) return;
     const restored = removedLayout;removedLayout = null;showLayout(restored);get('quote-edit-layout').focus();
-    draftStatus.textContent = 'Layout restored. Review it and check the inclusion box if you want to include it. Restoring does not send a request.';
+    draftMessage.textContent = 'Layout restored. Review it and check the inclusion box if you want to include it. Restoring does not send a request.';
   });
   copyReference.addEventListener('click', async () => {
     if (pending || !attempted) return;const mine = referenceEpoch;
@@ -124,7 +122,7 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
     const editable = [...new Set([...form.querySelectorAll('input,select,textarea'), ...document.querySelectorAll('#configurator input,#configurator select,#configurator textarea,#configurator button,[data-type]')])].map(control => [control, control.disabled]);
     for (const [control] of editable) control.disabled = true;
     pending = true;attempted = true;referenceEpoch++;copyReference.hidden = false;copyReference.disabled = true;
-    draftStatus.textContent = '';
+    draftMessage.textContent = '';
     get('quote-reference-status').textContent = '';layoutControls();button.disabled = true;form.setAttribute('aria-busy', 'true');deliveryStatus.textContent = 'Sending your request…';
     try {
       await send(quote);submitted = true;button.textContent = 'Request Sent';

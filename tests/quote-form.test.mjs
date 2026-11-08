@@ -323,21 +323,34 @@ test('editing and validating a quote preserves its unconfirmed delivery referenc
   assert.equal(p.status.textContent, unconfirmed);
   assert.equal(p.document.activeElement.getAttribute('name'), 'details');
   assert.match(p.draftStatus.textContent, /check your project details/);
+  const detailsError = details.getAttribute('aria-describedby');
+  const assertDetailsError = notice => {
+    assert.match(p.draftStatus.textContent, notice);
+    assert.equal(details.getAttribute('aria-invalid'), 'true');
+    assert.equal(details.getAttribute('aria-describedby'), detailsError);
+    assert.match(get(detailsError)?.textContent ?? '', /check your project details/);
+    assert.equal(p.status.textContent, unconfirmed);
+    assert.equal(attempts.length, 1);
+  };
 
   get('quote-edit-layout').click();
   editField(p, 'width', '180.25');
   applyEdit(p);
+  assertDetailsError(/Layout updated/);
+  assert.equal(includeLayout.checked, false);
+  get('quote-remove-layout').click();
+  assertDetailsError(/Layout removed/);
+  get('quote-restore-layout').click();
+  assertDetailsError(/Layout restored/);
+  assert.equal(includeLayout.checked, false);
+
   details.value = 'Revised project details.';
   details.dispatchEvent(new p.window.Event('input', { bubbles: true }));
   assert.equal(p.status.textContent, unconfirmed);
-  assert.match(p.draftStatus.textContent, /Layout updated/);
+  assert.match(p.draftStatus.textContent, /Layout restored/);
+  assert.doesNotMatch(p.draftStatus.textContent, /check your project details/);
   assert.equal(details.hasAttribute('aria-invalid'), false);
   assert.equal(details.hasAttribute('aria-describedby'), false);
-  assert.equal(includeLayout.checked, false);
-  get('quote-remove-layout').click();
-  assert.equal(p.status.textContent, unconfirmed);
-  get('quote-restore-layout').click();
-  assert.equal(p.status.textContent, unconfirmed);
   assert.equal(includeLayout.checked, false);
 
   const project = p.form.elements.namedItem('project');
