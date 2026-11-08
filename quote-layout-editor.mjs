@@ -50,11 +50,11 @@ export function setupQuoteLayoutEditor({ document, window, read, apply }) {
       candidate = null;save.disabled = true;preview.replaceChildren();status.textContent = error.message;
     }
   }
-  function close() {
+  function close(focusTarget = opener) {
     active = false;candidate = null;
     if (dialog.open && typeof dialog.close === 'function') dialog.close();
     dialog.removeAttribute('open');dialog.hidden = true;fields.replaceChildren();spaces.replaceChildren();preview.replaceChildren();
-    if (!locked) (opener?.hidden ? button : opener)?.focus();
+    if (!locked) (focusTarget?.hidden ? button : focusTarget)?.focus();
   }
   function open(value, source) {
     if (locked || active) return;
@@ -80,11 +80,12 @@ export function setupQuoteLayoutEditor({ document, window, read, apply }) {
   form.addEventListener('submit', event => {
     event.preventDefault();if (!active || locked) return;draw();
     if (!candidate || !form.reportValidity()) return;
-    apply(readLayout(candidate));close();
+    apply(readLayout(candidate));
+    close(button);
   });
-  get('quote-layout-cancel').addEventListener('click',close);
+  get('quote-layout-cancel').addEventListener('click', () => close());
   dialog.addEventListener('cancel',event => { event.preventDefault();close(); });
-  window.addEventListener('pagehide',close);
+  window.addEventListener('pagehide', () => close());
   return { cancel: close, setLocked(value) {
     locked = Boolean(value);button.disabled = locked || !read();create.disabled = locked;create.hidden = Boolean(read());
     for (const link of launchers) { if (locked) link.setAttribute('aria-disabled','true');else link.removeAttribute('aria-disabled'); }
