@@ -297,6 +297,7 @@ const editField = (p,key,value,spaceIndex=null) => {
  const control=parent.querySelector(`[data-layout-field=${key}]`);control.value=value;control.dispatchEvent(new p.window.Event('input',{bubbles:true}));return control;
 };
 const applyEdit = p => p.document.getElementById('quote-layout-edit-form').dispatchEvent(new p.window.Event('submit',{bubbles:true,cancelable:true}));
+const pageTransition = (p, type, persisted) => p.window.dispatchEvent(Object.assign(new p.window.Event(type), { persisted }));
 test('editing and validating a quote preserves its unconfirmed delivery reference', async t => {
   const attempts = [];
   let confirmRetry;
@@ -381,16 +382,64 @@ test('quote layout edits preserve all contact and studio fields, require renewed
  assert.equal(p.window.localStorage.length,0);assert.equal(p.window.sessionStorage.length,0);
  p.document.getElementById('quote-include-layout').checked=true;p.submit();await tick();assert.match(payloads[0].design_options.design.notes,/start 42.5 in, width 36 in/);assert.match(payloads[0].design_options.design.notes,/Keep the trim/);
 });
-test('cancel button and Escape discard draft edits and preserve original inclusion and URL',t=>{
+test('cancel, Escape and ordinary page departure discard draft edits and preserve original inclusion and URL',t=>{
  const p=page(t,()=>assert.fail('editing must not send'),editingQuery);const url=p.window.location.href;
  p.document.getElementById('quote-include-layout').checked=true;
- for(const kind of ['button','escape']){
+ const dismiss = [
+  () => p.document.getElementById('quote-layout-cancel').click(),
+  () => p.document.getElementById('quote-layout-editor').dispatchEvent(new p.window.Event('cancel',{cancelable:true})),
+  () => pageTransition(p, 'pagehide', false)
+ ];
+ for(const close of dismiss){
   p.document.getElementById('quote-edit-layout').click();editField(p,'width','190');
-  if(kind==='button')p.document.getElementById('quote-layout-cancel').click();else p.document.getElementById('quote-layout-editor').dispatchEvent(new p.window.Event('cancel',{cancelable:true}));
+  close();
+  assert.equal(p.document.getElementById('quote-layout-editor').hidden,true);
+  assert.equal(p.document.getElementById('quote-layout-edit-fields').children.length,0);
   assert.equal(p.window.location.href,url);assert.equal(p.document.getElementById('quote-include-layout').checked,true);assert.match(p.document.getElementById('quote-layout-summary').textContent,/168.25 × 120/);
   assert.equal(p.document.activeElement,p.document.getElementById('quote-edit-layout'));
  }
  p.document.getElementById('quote-edit-layout').click();assert.equal(p.document.querySelector('#quote-layout-edit-fields [data-layout-field=width]').value,'168.25');
+});
+test('cached navigation keeps unapplied layout edits available for Cancel or Apply', t => {
+  for (const apply of [false, true]) {
+    const p = page(t, () => assert.fail('a layout draft must not send'), editingQuery);
+    const get = id => p.document.getElementById(id);
+    const url = p.window.location.href;
+    const include = get('quote-include-layout');
+    include.checked = true;
+    get('quote-edit-layout').click();
+    const width = editField(p, 'width', '180.25');
+    const offset = editField(p, 'offset', '42.5', 0);
+    width.focus();
+
+    pageTransition(p, 'pagehide', true);
+    pageTransition(p, 'pageshow', true);
+    assert.equal(get('quote-layout-editor').open, true);
+    assert.equal(get('quote-layout-editor').hidden, false);
+    assert.equal(p.document.activeElement.getAttribute('data-layout-field'), 'width');
+    assert.equal(width.value, '180.25');
+    assert.equal(offset.value, '42.5');
+    assert.equal(p.form.elements.namedItem('email').value, 'test@example.invalid');
+    assert.equal(p.form.elements.namedItem('consent').checked, true);
+    assert.equal(p.window.location.href, url);
+    assert.equal(include.checked, true);
+    assert.match(get('quote-layout-summary').textContent, /168.25 × 120/);
+
+    if (apply) {
+      applyEdit(p);
+      const layout = JSON.parse(new URL(p.window.location.href).searchParams.get('layout'));
+      assert.equal(layout.width, 180.25);
+      assert.equal(layout.spaces[0].offset, 42.5);
+      assert.equal(include.checked, false);
+    } else {
+      get('quote-layout-cancel').click();
+      assert.equal(p.window.location.href, url);
+      assert.equal(include.checked, true);
+    }
+    assert.equal(get('quote-layout-editor').hidden, true);
+    assert.equal(p.window.localStorage.length, 0);
+    assert.equal(p.window.sessionStorage.length, 0);
+  }
 });
 test('quote editor rejects invalid dimensions and conflicting spaces without changing the original concept',t=>{
  const p=page(t,()=>assert.fail('editing must not send'),editingQuery),url=p.window.location.href;

@@ -89,7 +89,10 @@ export function setupQuoteLayoutEditor({ document, window, read, apply }) {
   });
   get('quote-layout-cancel').addEventListener('click', () => close());
   dialog.addEventListener('cancel',event => { event.preventDefault();close(); });
-  window.addEventListener('pagehide', () => close());
+  window.addEventListener('pagehide', event => {
+    // Keep the in-memory editor available if the browser returns to this page.
+    if (!event.persisted) close();
+  });
   return { cancel: close, setLocked(value) {
     locked = Boolean(value);button.disabled = locked || !read();create.disabled = locked;create.hidden = Boolean(read());
     for (const { link, destination } of launchers) {
