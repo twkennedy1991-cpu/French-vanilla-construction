@@ -8,6 +8,7 @@ const projectTypes = Object.freeze({
 export function setupQuoteDesign({ document, window, projectSelect }) {
   const get = id => document.getElementById(id);
   const studio = get('configurator'), include = get('quote-include-design');
+  const studioHeading = get('config-title');
   const summary = get('quote-design-summary');
   let selected = null;
   function values() {
@@ -27,14 +28,15 @@ export function setupQuoteDesign({ document, window, projectSelect }) {
     const type = button.dataset.type;
     if (!Object.hasOwn(projectTypes, type)) return;
     selected = type;
-    get('config-title').textContent = selected + ' — Your Design Selections';
+    studioHeading.textContent = selected + ' — Your Design Selections';
     studio.hidden = false;
     // Choosing a studio category alone never opts the customer into attaching it.
     include.checked = false;
     include.disabled = false;
     refresh();
     get('design-status').textContent = 'Choose your selections, then use them in the quote request or copy a summary.';
-    studio.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    studioHeading.focus({ preventScroll: true });
+    studio.scrollIntoView?.({ block: 'start' });
   });
   get('use-design').addEventListener('click', () => {
     if (!selected || studio.hidden) return;
@@ -42,8 +44,8 @@ export function setupQuoteDesign({ document, window, projectSelect }) {
     include.checked = true;
     refresh();
     get('design-status').textContent = 'Selections added to the quote form below. Review your details and contact permission before sending. No request has been sent.';
-    get('contact').scrollIntoView?.({ behavior: 'smooth', block: 'start' });
-    include.focus();
+    get('door-quote').focus({ preventScroll: true });
+    get('contact').scrollIntoView?.({ block: 'start' });
   });
   for (const control of studio.querySelectorAll('input,select,textarea')) control.addEventListener('input', refresh);
   include.addEventListener('change', refresh);
