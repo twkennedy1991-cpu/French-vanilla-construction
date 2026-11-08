@@ -6,15 +6,18 @@ import { setupQuoteForm } from '../quote-form.mjs';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const reference = 'c819376a-48dd-4ed9-a221-a59f564d617b';
 const tick = () => new Promise(resolve => setImmediate(resolve));
-function page(t, send, query = '') {
-  const window = new Window({ url: 'https://example.invalid/' + query });
+const testFields = { name: 'Test Customer', phone: '555-0100', email: 'test@example.invalid', location: 'Philadelphia MS', size: '36 x 84', details: 'Please discuss a door for our room.' };
+function page(t, send, path = '', { seed = true } = {}) {
+  const window = new Window({ url: 'https://example.invalid/' + path });
   t.after(() => window.happyDOM.close());
   const document = window.document;
   document.write(html);
   const form = document.getElementById('quote-form');
-  const values = { name: 'Test Customer', phone: '555-0100', email: 'test@example.invalid', location: 'Philadelphia MS', project: 'Custom Barn Door', size: '36 x 84', details: 'Please discuss a door for our room.' };
-  for (const [key, value] of Object.entries(values)) form.elements.namedItem(key).value = value;
-  form.elements.namedItem('consent').checked = true;
+  if (seed) {
+    for (const [key, value] of Object.entries(testFields)) form.elements.namedItem(key).value = value;
+    form.elements.namedItem('project').value = 'Custom Barn Door';
+    form.elements.namedItem('consent').checked = true;
+  }
   setupQuoteForm({ document, window, send, requestId: reference });
   const submit = () => form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
   return {
@@ -112,6 +115,58 @@ test('only known project query values are selected', t => {
   assert.equal(known.form.elements.namedItem('project').value, 'Custom Cabinetry');
   const bad = page(t, async () => {}, '?project=Unlisted');
   assert.equal(bad.form.elements.namedItem('project').value, 'Custom Barn Door');
+});
+test('service-page quote links preselect only their editable project type', async t => {
+  const cases = [
+    ['cabinetry.html', 'Custom Cabinetry', ['nav', 'footer', '.service-hero', '.service-cta']],
+    ['barn-doors.html', 'Custom Barn Door', ['nav', 'footer', '.service-hero', '.service-cta']],
+    ['kitchen-planner.html', 'Custom Cabinetry', ['nav', 'noscript']]
+  ];
+  const document = new Window({ url: 'https://example.invalid/' }).document;
+  t.after(() => document.defaultView.happyDOM.close());
+  for (const [file, service, selectors] of cases) {
+    const source = document.implementation.createHTMLDocument();
+    source.documentElement.innerHTML = readFileSync(new URL('../' + file, import.meta.url), 'utf8');
+    const destinations = selectors.map(selector => {
+      const link = source.querySelector(selector + ' a[href$="#contact"]');
+      assert.ok(link, file + ' ' + selector);
+      const url = new URL(link.getAttribute('href'), 'https://example.invalid/' + file);
+      assert.equal(url.origin, 'https://example.invalid');
+      assert.equal(url.pathname, '/index.html');
+      assert.equal(url.hash, '#contact');
+      assert.deepEqual([...url.searchParams], [['project', service]], file + ' ' + selector);
+      return url;
+    });
+    const target = destinations[0];
+    const sent = [];
+    const p = page(t, async quote => sent.push(quote), target.href.slice(target.origin.length + 1), { seed: false });
+    const project = p.form.elements.namedItem('project');
+    const consent = p.form.elements.namedItem('consent');
+    assert.equal(project.value, service);
+    assert.equal(project.disabled, false);
+    assert.equal(consent.checked, false);
+    assert.equal(p.document.getElementById('quote-include-design').checked, false);
+    assert.equal(p.document.getElementById('quote-include-layout').checked, false);
+    assert.equal(p.document.getElementById('quote-layout').hidden, true);
+    for (const [field, value] of Object.entries(testFields)) {
+      const control = p.form.elements.namedItem(field);
+      assert.equal(control.value, '');
+      control.value = value;
+    }
+    p.button.click();
+    assert.deepEqual(sent, []);
+    const chosen = file === 'kitchen-planner.html' ? 'Kitchen Remodel' : service;
+    project.value = chosen;
+    consent.checked = true;
+    p.button.click();
+    await tick();
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].project_type, chosen);
+    assert.equal(sent[0].design_options.design, null);
+  }
+  const generic = page(t, async () => assert.fail('opening a general quote must not send'), 'index.html#contact', { seed: false });
+  assert.equal(generic.document.querySelector('.hero a.btn.gold').getAttribute('href'), '#contact');
+  assert.equal(generic.form.elements.namedItem('project').value, '');
 });
 
 test('opening the studio does not silently attach design context or send a request', async t => {
