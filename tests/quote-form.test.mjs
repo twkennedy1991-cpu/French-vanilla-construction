@@ -76,6 +76,30 @@ test('opening the studio does not silently attach design context or send a reque
   assert.match(p.document.getElementById('quote-design-summary').textContent, /not included/);
   p.submit();await tick();assert.equal(payloads[0].design_options.design, null);
 });
+test('opening a design category moves keyboard focus to the visible studio heading', t => {
+  const p = page(t, () => assert.fail('opening the studio must not send'));
+  const category = p.document.querySelector('[data-type="Kitchen Cabinetry"]');
+  category.focus();
+  category.click();
+  assert.equal(p.document.getElementById('configurator').hidden, false);
+  assert.equal(p.document.activeElement.id, 'config-title');
+  assert.match(p.document.activeElement.textContent, /Kitchen Cabinetry/);
+  assert.equal(p.document.getElementById('quote-include-design').checked, false);
+});
+test('using studio selections starts keyboard navigation at the quote heading', t => {
+  const p = page(t, () => assert.fail('using selections must not send'));
+  const consent = p.form.elements.namedItem('consent');
+  consent.checked = false;
+  p.document.querySelector('[data-type="Kitchen Cabinetry"]').click();
+  const useSelections = p.document.getElementById('use-design');
+  useSelections.focus();
+  useSelections.click();
+  assert.equal(p.document.activeElement.id, 'door-quote');
+  assert.equal(p.form.elements.namedItem('project').value, 'Custom Cabinetry');
+  assert.equal(p.document.getElementById('quote-include-design').checked, true);
+  assert.equal(p.form.elements.namedItem('email').value, 'test@example.invalid');
+  assert.equal(consent.checked, false);
+});
 test('explicitly using each studio category attaches selections under the matching quote service', async t => {
   for (const [type, service] of [['Kitchen Cabinetry', 'Custom Cabinetry'], ['Custom Barn Door', 'Custom Barn Door'], ['Bathroom Remodel', 'Bathroom Remodel']]) {
     const payloads = [];const p = page(t, async quote => payloads.push(quote));
