@@ -4,7 +4,8 @@ import { setupQuoteDesign } from './quote-design.mjs';
 import { parseLayoutLink, layoutSummary, attachLayoutToDesign } from './layout-planner.mjs';
 
 export function setupQuoteForm({ document, window, send = submitQuote, requestId = window.crypto.randomUUID() }) {
-  const get = id => document.getElementById(id), form = get('quote-form'), status = get('quote-status');
+  const get = id => document.getElementById(id), form = get('quote-form');
+  const deliveryStatus = get('quote-status'), draftStatus = get('quote-draft-status');
   const button = form.querySelector('button[type="submit"]');
   const projectSelect = form.elements.namedItem('project');
   const requestedProject = new URLSearchParams(window.location.search).get('project');
@@ -39,19 +40,19 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
   }
   const layoutEditor = setupQuoteLayoutEditor({ document, window, read: () => suppliedLayout, apply: layout => {
     removedLayout = null;showLayout(layout);
-    status.textContent = 'Layout updated. Review it and check the inclusion box to add it to your inquiry. Your contact details are retained.';
+    draftStatus.textContent = 'Layout updated. Review it and check the inclusion box to add it to your inquiry. Your contact details are retained.';
   } });
   get('quote-remove-layout').addEventListener('click', () => {
     if (pending || submitted || !hasLayout) return;
     layoutEditor.cancel();removedLayout = suppliedLayout;suppliedLayout = null;hasLayout = false;
     layoutPanel.hidden = true;get('quote-layout-summary').textContent = '';includeLayout.checked = false;includeLayout.disabled = true;
     updateAddress();layoutControls();get('quote-start-layout').focus();
-    status.textContent = 'Layout removed from this request. Your contact details and design studio selections are retained.' + (removedLayout ? ' You can restore the removed layout on this page.' : '');
+    draftStatus.textContent = 'Layout removed from the current draft. Your contact details and design studio selections are retained.' + (removedLayout ? ' You can restore the removed layout on this page.' : '');
   });
   get('quote-restore-layout').addEventListener('click', () => {
     if (pending || submitted || !removedLayout) return;
     const restored = removedLayout;removedLayout = null;showLayout(restored);get('quote-edit-layout').focus();
-    status.textContent = 'Layout restored. Review it and check the inclusion box if you want to include it. Restoring does not send a request.';
+    draftStatus.textContent = 'Layout restored. Review it and check the inclusion box if you want to include it. Restoring does not send a request.';
   });
   copyReference.addEventListener('click', async () => {
     if (pending || !attempted) return;const mine = referenceEpoch;
@@ -73,22 +74,23 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
         design = attachLayoutToDesign(design, suppliedLayout);
       }
       quote = buildQuote(Object.fromEntries(new window.FormData(form)), requestId, design);
-    } catch (error) { status.textContent = error.message;return; }
+    } catch (error) { draftStatus.textContent = error.message;return; }
     const editable = [...new Set([...form.querySelectorAll('input,select,textarea'), ...document.querySelectorAll('#configurator input,#configurator select,#configurator textarea,#configurator button,[data-type]')])].map(control => [control, control.disabled]);
     for (const [control] of editable) control.disabled = true;
     pending = true;attempted = true;referenceEpoch++;copyReference.hidden = false;copyReference.disabled = true;
-    get('quote-reference-status').textContent = '';layoutControls();button.disabled = true;form.setAttribute('aria-busy', 'true');status.textContent = 'Sending your request…';
+    draftStatus.textContent = '';
+    get('quote-reference-status').textContent = '';layoutControls();button.disabled = true;form.setAttribute('aria-busy', 'true');deliveryStatus.textContent = 'Sending your request…';
     try {
       await send(quote);submitted = true;button.textContent = 'Request Sent';
-      status.textContent = `Thank you — your request has been received for review. Reference: ${requestId}. Our team will contact you about your project.`;
+      deliveryStatus.textContent = `Thank you — your request has been received for review. Reference: ${requestId}. Our team will contact you about your project.`;
     } catch {
-      status.textContent = `We could not confirm your submission. Please call 601-504-5311 before resubmitting and mention reference ${requestId}. Your details are still here.`;
+      deliveryStatus.textContent = `We could not confirm your submission. Please call 601-504-5311 before resubmitting and mention reference ${requestId}. Your details are still here.`;
     } finally {
       pending = false;for (const [control, disabled] of editable) control.disabled = disabled;
       button.disabled = submitted;copyReference.disabled = false;layoutControls();form.removeAttribute('aria-busy');
     }
   });
-  status.textContent = '';
+  deliveryStatus.textContent = '';
   button.disabled = false;
 }
 if (typeof document !== 'undefined') setupQuoteForm({ document, window });
