@@ -17,7 +17,10 @@ function page(t, send, query = '') {
   form.elements.namedItem('consent').checked = true;
   setupQuoteForm({ document, window, send, requestId: reference });
   const submit = () => form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
-  return { window, document, form, submit, status: document.getElementById('quote-status'), button: form.querySelector('button[type="submit"]') };
+  return {
+    window, document, form, submit, status: document.getElementById('quote-status'),
+    draftStatus: document.getElementById('quote-draft-status'), button: form.querySelector('button[type="submit"]')
+  };
 }
 test('duplicate taps make one request and only acceptance creates a receipt', async t => {
   let finish, calls = 0;
@@ -48,7 +51,7 @@ test('invalid design never leaves the browser and can be corrected without losin
   p.document.querySelector('[data-type="Custom Barn Door"]').click();
   p.document.getElementById('use-design').click();
   const notes = p.document.getElementById('design-notes'); notes.value = 'x'.repeat(2001);
-  p.submit(); await tick(); assert.equal(payloads.length, 0); assert.match(p.status.textContent, /design notes/);
+  p.submit(); await tick(); assert.equal(payloads.length, 0); assert.match(p.draftStatus.textContent, /design notes/);
   assert.equal(notes.value.length, 2001); assert.equal(p.button.disabled, false);
   notes.value = 'Please use the existing hardware.'; p.submit(); await tick();
   assert.equal(payloads.length, 1); assert.equal(payloads[0].design_options.design.notes, notes.value);
@@ -95,7 +98,7 @@ test('changing the quote service requires reconciling or removing the design att
   p.form.elements.namedItem('project').value = 'Custom Cabinetry';
   p.form.elements.namedItem('project').dispatchEvent(new p.window.Event('change'));
   assert.match(p.document.getElementById('quote-design-summary').textContent, /uncheck/);
-  p.submit();await tick();assert.equal(payloads.length, 0);assert.match(p.status.textContent, /Choose Custom Barn Door/);
+  p.submit();await tick();assert.equal(payloads.length, 0);assert.match(p.draftStatus.textContent, /Choose Custom Barn Door/);
   const include = p.document.getElementById('quote-include-design');include.checked = false;include.dispatchEvent(new p.window.Event('change'));
   p.submit();await tick();assert.equal(payloads.length, 1);assert.equal(payloads[0].design_options.design, null);
   assert.equal(p.document.getElementById('configurator').hidden, false);
@@ -144,7 +147,7 @@ test('incoming layout is shown but transmitted only after explicit inclusion',as
 test('layout service mismatches and overflowing combined notes cannot send, and invalid links keep ordinary inquiry available',async t=>{
  const {DEFAULT_LAYOUT}=await import('../layout-planner.mjs');
  const payloads=[];const p=page(t,async quote=>payloads.push(quote),'?layout='+encodeURIComponent(JSON.stringify(DEFAULT_LAYOUT)));
- p.document.getElementById('quote-include-layout').checked=true;p.submit();await tick();assert.equal(payloads.length,0);assert.match(p.status.textContent,/Choose Custom Cabinetry/);
+ p.document.getElementById('quote-include-layout').checked=true;p.submit();await tick();assert.equal(payloads.length,0);assert.match(p.draftStatus.textContent,/Choose Custom Cabinetry/);
  p.document.querySelector('[data-type="Kitchen Cabinetry"]').click();p.document.getElementById('use-design').click();p.document.getElementById('design-notes').value='x'.repeat(2000);
  p.submit();await tick();assert.equal(payloads.length,0);assert.equal(p.document.getElementById('design-notes').value.length,2000);
  const bad=[];const other=page(t,async quote=>bad.push(quote),'?layout=invalid');
@@ -160,7 +163,7 @@ test('reserved spaces reach inquiries only after inclusion and invalid spaces ca
  const included=[];const b=page(t,async quote=>included.push(quote),query);b.document.getElementById('quote-include-layout').checked=true;b.submit();await tick();
  assert.match(included[0].design_options.design.notes,/start 30.25 in, width 36 in/);assert.match(included[0].design_options.design.notes,/Reserved widths only/);
  const bad={...layout,spaces:[{wall:'right',offset:0,width:30}]};const c=page(t,async()=>assert.fail('invalid layout must not attach'),'?project=Custom%20Cabinetry&layout='+encodeURIComponent(JSON.stringify(bad)));
- assert.equal(c.document.getElementById('quote-include-layout').disabled,true);c.document.getElementById('quote-include-layout').checked=true;c.submit();await tick();assert.match(c.status.textContent,/valid planner layout/);
+ assert.equal(c.document.getElementById('quote-include-layout').disabled,true);c.document.getElementById('quote-include-layout').checked=true;c.submit();await tick();assert.match(c.draftStatus.textContent,/valid planner layout/);
 });
 
 const editingLayout = {schema:'fv.layout.v2',shape:'U',width:168.25,depth:120,cabinetDepth:24,cabinetHeight:34.5,moduleWidth:30,spaces:[{wall:'back',offset:36.25,width:36}]};
@@ -170,6 +173,62 @@ const editField = (p,key,value,spaceIndex=null) => {
  const control=parent.querySelector(`[data-layout-field=${key}]`);control.value=value;control.dispatchEvent(new p.window.Event('input',{bubbles:true}));return control;
 };
 const applyEdit = p => p.document.getElementById('quote-layout-edit-form').dispatchEvent(new p.window.Event('submit',{bubbles:true,cancelable:true}));
+test('editing and validating a quote preserves its unconfirmed delivery reference', async t => {
+  const attempts = [];
+  let confirmRetry;
+  const p = page(t, async quote => {
+    attempts.push(quote);
+    if (attempts.length === 1) throw new Error('Response lost');
+    await new Promise(resolve => { confirmRetry = resolve; });
+  }, editingQuery);
+  const get = id => p.document.getElementById(id);
+  const includeLayout = get('quote-include-layout');
+  includeLayout.checked = true;
+  p.button.click();
+  await tick();
+  const unconfirmed = p.status.textContent;
+  assert.match(unconfirmed, /could not confirm/);
+  assert.ok(unconfirmed.includes(reference));
+
+  p.form.elements.namedItem('details').value = 'Revised project details.';
+  get('quote-edit-layout').click();
+  editField(p, 'width', '180.25');
+  applyEdit(p);
+  assert.equal(p.status.textContent, unconfirmed);
+  assert.match(p.draftStatus.textContent, /Layout updated/);
+  assert.equal(includeLayout.checked, false);
+  get('quote-remove-layout').click();
+  assert.equal(p.status.textContent, unconfirmed);
+  get('quote-restore-layout').click();
+  assert.equal(p.status.textContent, unconfirmed);
+  assert.equal(includeLayout.checked, false);
+
+  const project = p.form.elements.namedItem('project');
+  includeLayout.checked = true;
+  project.value = 'Custom Barn Door';
+  p.button.click();
+  assert.equal(attempts.length, 1);
+  assert.match(p.draftStatus.textContent, /Choose Custom Cabinetry/);
+  assert.equal(p.status.textContent, unconfirmed);
+
+  p.window.navigator.clipboard.writeText = async () => { throw new Error('Unavailable'); };
+  get('quote-copy-reference').click();
+  await tick();
+  assert.match(get('quote-reference-status').textContent, /Select the reference/);
+  assert.equal(p.status.textContent, unconfirmed);
+
+  project.value = 'Custom Cabinetry';
+  p.button.click();
+  p.button.click();
+  assert.equal(attempts.length, 2);
+  assert.equal(attempts[0].id, attempts[1].id);
+  assert.equal(attempts[1].project_description, 'Revised project details.');
+  assert.match(attempts[1].design_options.design.notes, /180\.25 × 120/);
+  assert.equal(p.draftStatus.textContent, '');
+  confirmRetry();
+  await tick();
+  assert.match(p.status.textContent, /received for review/);
+});
 test('quote layout edits preserve all contact and studio fields, require renewed inclusion and update only geometry in the URL', async t=>{
  const payloads=[];const p=page(t,async quote=>payloads.push(quote),editingQuery);
  p.document.querySelector('[data-type="Kitchen Cabinetry"]').click();p.document.getElementById('use-design').click();p.document.getElementById('design-notes').value='Keep the trim.';
