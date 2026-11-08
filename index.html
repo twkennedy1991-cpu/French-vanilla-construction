@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="form-action 'none'">
 <title>French Vanilla Custom Cabinetry & Construction LLC</title>
 <meta name="description" content="Custom cabinetry, construction and handcrafted architectural barn doors.">
 <link rel="stylesheet" href="styles.css">
@@ -89,11 +90,10 @@
     <button id="quote-restore-layout" type="button" class="btn planner-secondary" hidden>Restore removed layout</button>
     <section id="quote-layout" hidden><h3>Your layout concept</h3><p id="quote-layout-summary"></p><button id="quote-edit-layout" type="button" class="btn planner-secondary" disabled>Edit this layout</button><button id="quote-remove-layout" type="button" class="btn planner-secondary">Remove this layout</button><label class="consent"><input id="quote-include-layout" type="checkbox" disabled> Include this unverified layout concept in my inquiry</label><p class="fine">The concept is not included unless you check this box. French Vanilla must confirm measurements and feasibility before pricing.</p></section>
     <label class="consent"><input type="checkbox" name="consent" required> I agree that French Vanilla may contact me about this project using the details above.</label>
-    <button class="btn gold" type="submit">Send Quote Request</button>
-    <p id="quote-status" role="status" aria-live="polite"></p>
+    <button class="btn gold" type="submit" disabled>Send Quote Request</button>
+    <p id="quote-status" role="status" aria-live="polite">If the quote form is unavailable, call <a href="tel:+16015045311">601-504-5311</a> to request a quote.</p>
     <button id="quote-copy-reference" type="button" class="btn planner-secondary" disabled hidden>Copy request reference</button><p id="quote-reference-status" role="status" aria-live="polite"></p>
     <p class="fine">Your contact details and project description are saved privately for our team to review. This request is not a price or a booking. Approximate measurements must be confirmed before pricing.</p>
-    <noscript>Please call <a href="tel:+16015045311">601-504-5311</a> to request your quote.</noscript>
   </form>
 </section>
 </main>
