@@ -4,10 +4,17 @@ export const config = Object.freeze({
   key: 'sb_publishable_zU7wfcOUFTgwfihBhvU_wg_awW_yUIb'
 });
 export const projects = ['Custom Barn Door', 'Custom Cabinetry', 'Kitchen Remodel', 'Bathroom Remodel', 'Other Construction'];
-const clean = (value, max, label, required = false) => {
-  if (value != null && typeof value !== 'string') throw new Error(`Please check ${label}.`);
-  const text = String(value || '').trim();
-  if ((required && !text) || text.length > max) throw new Error(`Please check ${label}.`);
+export class QuoteValidationError extends Error {
+  constructor(message, field) {
+    super(message);
+    this.field = field;
+  }
+}
+const clean = (value, max, label, required = false, field) => {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if ((value != null && typeof value !== 'string') || (required && !text) || text.length > max) {
+    throw new QuoteValidationError(`Please check ${label}.`, field);
+  }
   return text;
 };
 // Match the intake limits used by the private JARVIS inquiry reader.
@@ -21,19 +28,20 @@ export function cleanDesign(design) {
     .map(([key, max]) => [key, clean(design[key], max, `your design ${key}`)]));
 }
 export function buildQuote(fields, id, design = null) {
-  const customer_email = clean(fields.email, 254, 'your email', true);
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer_email)) throw new Error('Please enter a valid email.');
-  if (!projects.includes(fields.project)) throw new Error('Please choose a project type.');
-  if (fields.consent !== 'on') throw new Error('Please agree to be contacted about your project.');
-  const location = clean(fields.location, 200, 'your project location', true);
+  const quoteText = (field, max, label, required = true) => clean(fields[field], max, label, required, field);
+  const customer_email = quoteText('email', 254, 'your email');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer_email)) throw new QuoteValidationError('Please enter a valid email.', 'email');
+  if (!projects.includes(fields.project)) throw new QuoteValidationError('Please choose a project type.', 'project');
+  if (fields.consent !== 'on') throw new QuoteValidationError('Please agree to be contacted about your project.', 'consent');
+  const location = quoteText('location', 200, 'your project location');
   return {
     id,
-    customer_name: clean(fields.name, 120, 'your name', true),
+    customer_name: quoteText('name', 120, 'your name'),
     customer_email,
-    customer_phone: clean(fields.phone, 40, 'your phone', true),
+    customer_phone: quoteText('phone', 40, 'your phone'),
     project_type: fields.project,
-    project_description: clean(fields.details, 4000, 'your project details', true),
-    measurements: { customer_supplied: clean(fields.size, 200, 'dimensions'), verified: false },
+    project_description: quoteText('details', 4000, 'your project details'),
+    measurements: { customer_supplied: quoteText('size', 200, 'dimensions', false), verified: false },
     design_options: { source: 'french-vanilla-website', business_contact_email: 'frenchvanillaconstruction@gmail.com', location, contact_consent: true, design: cleanDesign(design) },
     status: 'new'
   };

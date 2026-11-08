@@ -56,6 +56,51 @@ test('invalid design never leaves the browser and can be corrected without losin
   notes.value = 'Please use the existing hardware.'; p.submit(); await tick();
   assert.equal(payloads.length, 1); assert.equal(payloads[0].design_options.design.notes, notes.value);
 });
+test('custom quote validation focuses and describes the field that needs correction', async t => {
+  const cases = [
+    ['name', '   ', /check your name/],
+    ['details', '   ', /check your project details/],
+    ['email', 'customer@local', /enter a valid email/]
+  ];
+  for (const [name, invalidValue, message] of cases) {
+    const payloads = [];
+    const p = page(t, async quote => payloads.push(quote));
+    const control = p.form.elements.namedItem(name);
+    const validValue = control.value;
+    const include = p.document.getElementById('quote-include-design');
+    p.document.querySelector('[data-type="Custom Barn Door"]').click();
+    p.document.getElementById('use-design').click();
+    control.setAttribute('aria-describedby', 'quote-test-help');
+    control.setAttribute('aria-invalid', 'false');
+    control.value = invalidValue;
+    assert.equal(p.form.reportValidity(), true);
+    p.button.focus();
+    p.button.click();
+    assert.deepEqual(payloads, []);
+    assert.equal(p.document.activeElement.getAttribute('name'), name);
+    assert.match(p.draftStatus.textContent, message);
+    assert.equal(control.getAttribute('aria-describedby'), 'quote-test-help quote-field-error');
+    assert.match(p.document.getElementById('quote-field-error').textContent, message);
+    assert.equal(control.getAttribute('aria-invalid'), 'true');
+    assert.equal(control.value, invalidValue);
+    assert.equal(include.checked, true);
+    assert.equal(p.form.elements.namedItem('consent').checked, true);
+
+    const size = p.form.elements.namedItem('size');
+    size.dispatchEvent(new p.window.Event('input', { bubbles: true }));
+    assert.match(p.draftStatus.textContent, message);
+    control.value = validValue;
+    control.dispatchEvent(new p.window.Event('input', { bubbles: true }));
+    assert.equal(control.getAttribute('aria-describedby'), 'quote-test-help');
+    assert.equal(control.getAttribute('aria-invalid'), 'false');
+    assert.equal(p.draftStatus.textContent, '');
+    p.button.click();
+    await tick();
+    assert.equal(payloads.length, 1);
+    assert.equal(payloads[0].id, reference);
+    assert.equal(payloads[0].design_options.design.project, 'Custom Barn Door');
+  }
+});
 test('hidden studio selections are excluded and native required/consent validation blocks sending', async t => {
   const payloads = []; const p = page(t, async quote => { payloads.push(quote); });
   p.form.elements.namedItem('consent').checked = false; p.submit(); await tick(); assert.equal(payloads.length, 0);
@@ -214,12 +259,24 @@ test('editing and validating a quote preserves its unconfirmed delivery referenc
   assert.match(unconfirmed, /could not confirm/);
   assert.ok(unconfirmed.includes(reference));
 
-  p.form.elements.namedItem('details').value = 'Revised project details.';
+  const details = p.form.elements.namedItem('details');
+  details.value = '   ';
+  p.button.focus();
+  p.button.click();
+  assert.equal(attempts.length, 1);
+  assert.equal(p.status.textContent, unconfirmed);
+  assert.equal(p.document.activeElement.getAttribute('name'), 'details');
+  assert.match(p.draftStatus.textContent, /check your project details/);
+
   get('quote-edit-layout').click();
   editField(p, 'width', '180.25');
   applyEdit(p);
+  details.value = 'Revised project details.';
+  details.dispatchEvent(new p.window.Event('input', { bubbles: true }));
   assert.equal(p.status.textContent, unconfirmed);
   assert.match(p.draftStatus.textContent, /Layout updated/);
+  assert.equal(details.hasAttribute('aria-invalid'), false);
+  assert.equal(details.hasAttribute('aria-describedby'), false);
   assert.equal(includeLayout.checked, false);
   get('quote-remove-layout').click();
   assert.equal(p.status.textContent, unconfirmed);

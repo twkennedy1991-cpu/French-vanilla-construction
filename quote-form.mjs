@@ -1,5 +1,5 @@
 import { setupQuoteLayoutEditor } from './quote-layout-editor.mjs';
-import { buildQuote, submitQuote } from './quote-client.mjs';
+import { buildQuote, QuoteValidationError, submitQuote } from './quote-client.mjs';
 import { setupQuoteDesign } from './quote-design.mjs';
 import { parseLayoutLink, layoutSummary, attachLayoutToDesign } from './layout-planner.mjs';
 
@@ -11,6 +11,43 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
   const requestedProject = new URLSearchParams(window.location.search).get('project');
   if ([...projectSelect.options].some(option => option.value === requestedProject)) projectSelect.value = requestedProject;
   const designAttachment = setupQuoteDesign({ document, window, projectSelect });
+  let fieldError = null;
+  const descriptionIds = control => (control.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean);
+  function clearFieldError() {
+    if (!fieldError) return;
+    const { control, message, addedDescription, previousInvalid } = fieldError;
+    fieldError = null;
+    if (addedDescription) {
+      const remaining = descriptionIds(control).filter(id => id !== message.id);
+      if (remaining.length) control.setAttribute('aria-describedby', remaining.join(' '));
+      else control.removeAttribute('aria-describedby');
+    }
+    if (control.getAttribute('aria-invalid') === 'true') {
+      if (previousInvalid === null) control.removeAttribute('aria-invalid');
+      else control.setAttribute('aria-invalid', previousInvalid);
+    }
+    message.remove();
+  }
+  function showDraftError(error) {
+    clearFieldError();
+    const control = error instanceof QuoteValidationError && error.field ? form.elements.namedItem(error.field) : null;
+    if (!control) { draftStatus.textContent = error.message;return; }
+    const message = document.createElement('span');
+    message.id = 'quote-field-error';
+    message.textContent = error.message;
+    draftStatus.replaceChildren(message);
+    const ids = descriptionIds(control);
+    const addedDescription = !ids.includes(message.id);
+    fieldError = { control, message, addedDescription, previousInvalid: control.getAttribute('aria-invalid') };
+    if (addedDescription) control.setAttribute('aria-describedby', [...ids, message.id].join(' '));
+    control.setAttribute('aria-invalid', 'true');
+    control.focus();
+  }
+  function clearEditedFieldError({ target }) {
+    if (target === fieldError?.control) clearFieldError();
+  }
+  form.addEventListener('input', clearEditedFieldError);
+  form.addEventListener('change', clearEditedFieldError);
   let suppliedLayout = null, removedLayout = null, pending = false, submitted = false, attempted = false, referenceEpoch = 0;
   const layoutParameter = new URLSearchParams(window.location.search).get('layout');let hasLayout = layoutParameter !== null;
   const layoutPanel = get('quote-layout'), includeLayout = get('quote-include-layout'), copyReference = get('quote-copy-reference');
@@ -74,7 +111,8 @@ export function setupQuoteForm({ document, window, send = submitQuote, requestId
         design = attachLayoutToDesign(design, suppliedLayout);
       }
       quote = buildQuote(Object.fromEntries(new window.FormData(form)), requestId, design);
-    } catch (error) { draftStatus.textContent = error.message;return; }
+    } catch (error) { showDraftError(error);return; }
+    clearFieldError();
     const editable = [...new Set([...form.querySelectorAll('input,select,textarea'), ...document.querySelectorAll('#configurator input,#configurator select,#configurator textarea,#configurator button,[data-type]')])].map(control => [control, control.disabled]);
     for (const [control] of editable) control.disabled = true;
     pending = true;attempted = true;referenceEpoch++;copyReference.hidden = false;copyReference.disabled = true;
