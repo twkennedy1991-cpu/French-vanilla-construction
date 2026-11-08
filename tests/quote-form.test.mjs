@@ -343,10 +343,15 @@ test('editing and validating a quote preserves its unconfirmed delivery referenc
   const project = p.form.elements.namedItem('project');
   includeLayout.checked = true;
   project.value = 'Custom Barn Door';
+  p.button.focus();
   p.button.click();
   assert.equal(attempts.length, 1);
   assert.match(p.draftStatus.textContent, /Choose Custom Cabinetry/);
   assert.equal(p.status.textContent, unconfirmed);
+  assert.equal(p.document.activeElement.id, includeLayout.id);
+  assert.equal(includeLayout.getAttribute('aria-invalid'), 'true');
+  assert.equal(includeLayout.getAttribute('aria-describedby'), 'quote-field-error');
+  assert.equal(includeLayout.checked, true);
 
   p.window.navigator.clipboard.writeText = async () => { throw new Error('Unavailable'); };
   get('quote-copy-reference').click();
@@ -355,6 +360,13 @@ test('editing and validating a quote preserves its unconfirmed delivery referenc
   assert.equal(p.status.textContent, unconfirmed);
 
   project.value = 'Custom Cabinetry';
+  project.dispatchEvent(new p.window.Event('change', { bubbles: true }));
+  assert.equal(includeLayout.hasAttribute('aria-invalid'), false);
+  assert.equal(includeLayout.hasAttribute('aria-describedby'), false);
+  assert.equal(p.draftStatus.textContent, '');
+  assert.equal(p.status.textContent, unconfirmed);
+  assert.equal(includeLayout.checked, true);
+  assert.equal(p.form.elements.namedItem('consent').checked, true);
   p.button.click();
   p.button.click();
   assert.equal(attempts.length, 2);
@@ -365,6 +377,48 @@ test('editing and validating a quote preserves its unconfirmed delivery referenc
   confirmRetry();
   await tick();
   assert.match(p.status.textContent, /received for review/);
+});
+test('unchecking a conflicting layout keeps the chosen service and unconfirmed reference', async t => {
+  const attempts = [];
+  const p = page(t, async quote => {
+    attempts.push(quote);
+    if (attempts.length === 1) throw new Error('Response lost');
+  }, editingQuery);
+  const include = p.document.getElementById('quote-include-layout');
+  const project = p.form.elements.namedItem('project');
+  include.setAttribute('aria-describedby', 'quote-layout-summary');
+  include.click();
+  p.button.click();
+  await tick();
+  const unconfirmed = p.status.textContent;
+  assert.match(unconfirmed, /could not confirm/);
+  const url = p.window.location.href;
+
+  project.value = 'Custom Barn Door';
+  project.dispatchEvent(new p.window.Event('change', { bubbles: true }));
+  p.button.focus();
+  p.button.click();
+  assert.equal(attempts.length, 1);
+  assert.equal(p.document.activeElement.id, include.id);
+  assert.equal(include.getAttribute('aria-describedby'), 'quote-layout-summary quote-field-error');
+  assert.match(p.document.getElementById('quote-field-error').textContent, /uncheck the layout concept/);
+  assert.equal(include.checked, true);
+  assert.equal(project.value, 'Custom Barn Door');
+
+  include.click();
+  assert.equal(include.checked, false);
+  assert.equal(include.hasAttribute('aria-invalid'), false);
+  assert.equal(include.getAttribute('aria-describedby'), 'quote-layout-summary');
+  assert.equal(p.draftStatus.textContent, '');
+  assert.equal(p.status.textContent, unconfirmed);
+  assert.equal(p.form.elements.namedItem('consent').checked, true);
+  assert.equal(p.window.location.href, url);
+  p.button.click();
+  await tick();
+  assert.equal(attempts.length, 2);
+  assert.equal(attempts[1].id, attempts[0].id);
+  assert.equal(attempts[1].project_type, 'Custom Barn Door');
+  assert.equal(attempts[1].design_options.design, null);
 });
 test('quote layout edits preserve all contact and studio fields, require renewed inclusion and update only geometry in the URL', async t=>{
  const payloads=[];const p=page(t,async quote=>payloads.push(quote),editingQuery);
