@@ -8,7 +8,11 @@ export function setupQuoteLayoutEditor({ document, window, read, apply }) {
   const status = get('quote-layout-edit-status'), preview = get('quote-layout-edit-preview');
   const save = get('quote-layout-apply'), add = get('quote-layout-add-space');
   let locked = false, active = false, candidate = null, opener = button;
-  const create = get('quote-start-layout'), launchers = [...document.querySelectorAll('[data-start-layout]')];
+  const create = get('quote-start-layout');
+  const launchers = [...document.querySelectorAll('[data-start-layout]')].map(link => ({
+    link,
+    destination: link.getAttribute('href')
+  }));
   function field(parent, text, key, value, options) {
     const label = document.createElement('label');label.textContent = text;
     const control = document.createElement(options ? 'select' : 'input');control.dataset.layoutField = key;
@@ -71,8 +75,8 @@ export function setupQuoteLayoutEditor({ document, window, read, apply }) {
   }
   button.addEventListener('click', () => { if (read()) open(read(),button); });
   create.addEventListener('click', () => open(read() || DEFAULT_LAYOUT,create));
-  for (const link of launchers) link.addEventListener('click', event => {
-    if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+  for (const { link } of launchers) link.addEventListener('click', event => {
+    if (!locked && (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)) return;
     event.preventDefault();open(read() || DEFAULT_LAYOUT,link);
   });
   add.addEventListener('click', () => { if (!active || locked) return;const row=spaceRow();draw();row?.querySelector('select').focus(); });
@@ -88,7 +92,15 @@ export function setupQuoteLayoutEditor({ document, window, read, apply }) {
   window.addEventListener('pagehide', () => close());
   return { cancel: close, setLocked(value) {
     locked = Boolean(value);button.disabled = locked || !read();create.disabled = locked;create.hidden = Boolean(read());
-    for (const link of launchers) { if (locked) link.setAttribute('aria-disabled','true');else link.removeAttribute('aria-disabled'); }
+    for (const { link, destination } of launchers) {
+      if (locked) {
+        link.setAttribute('aria-disabled', 'true');
+        link.removeAttribute('href');
+      } else {
+        link.removeAttribute('aria-disabled');
+        if (destination !== null) link.setAttribute('href', destination);
+      }
+    }
     if (locked && active) close();
   } };
 }

@@ -276,6 +276,43 @@ test('submission locking fences create/remove/restore and studio link navigation
  const e=new p.window.MouseEvent('click',{bubbles:true,cancelable:true});p.document.querySelector('[data-start-layout]').dispatchEvent(e);assert.equal(e.defaultPrevented,true);assert.equal(p.document.getElementById('quote-layout-editor').hidden,true);assert.equal(p.window.location.href,before);
  finish();await tick();p.document.getElementById('quote-restore-layout').dispatchEvent(new p.window.Event('click'));assert.equal(p.window.location.href,before);
 });
+test('the studio link cannot navigate while the quote is locked and returns after an unconfirmed request', async t => {
+  for (const accepted of [false, true]) {
+    let settle;
+    const p = page(t, () => new Promise((resolve, reject) => {
+      settle = () => accepted ? resolve() : reject(new Error('Offline'));
+    }));
+    const link = p.document.querySelector('[data-start-layout]');
+    const destination = link.getAttribute('href');
+    assert.equal(destination, 'kitchen-planner.html');
+
+    function assertLocked() {
+      let blocked;
+      link.addEventListener('click', event => {
+        blocked = event.defaultPrevented;
+        event.preventDefault();
+      }, { once: true });
+      link.dispatchEvent(new p.window.MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true }));
+      assert.equal(blocked, true);
+      assert.equal(link.getAttribute('aria-disabled'), 'true');
+      assert.equal(link.hasAttribute('href'), false);
+      assert.equal(p.document.getElementById('quote-layout-editor').hidden, true);
+    }
+
+    p.submit();
+    assertLocked();
+    settle();
+    await tick();
+
+    if (accepted) assertLocked();
+    else {
+      assert.equal(link.getAttribute('href'), destination);
+      assert.equal(link.hasAttribute('aria-disabled'), false);
+      link.click();
+      assert.equal(p.document.getElementById('quote-layout-editor').open, true);
+    }
+  }
+});
 test('reference copying is enabled only after a settled attempt and never confirms failed delivery',async t=>{
  let fail;const p=page(t,()=>new Promise((_,reject)=>{fail=reject;}));let copied=[];p.window.navigator.clipboard.writeText=async text=>copied.push(text);
  const button=p.document.getElementById('quote-copy-reference');button.dispatchEvent(new p.window.Event('click'));assert.equal(copied.length,0);assert.equal(button.hidden,true);
