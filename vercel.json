@@ -1,6 +1,9 @@
 {
   "git": {
-    "deploymentEnabled": { "forge/parker-quote-retry-mobile": false }
+    "deploymentEnabled": {
+      "forge/parker-quote-retry-mobile": false,
+      "forge/parker-wrap-quote-design-summary": false
+    }
   },
   "headers": [
     { "source": "/owner.html", "headers": [
