@@ -1,4 +1,7 @@
 {
+  "git": {
+    "deploymentEnabled": { "forge/parker-quote-retry-mobile": false }
+  },
   "headers": [
     { "source": "/owner.html", "headers": [
       { "key": "Cache-Control", "value": "no-store" },

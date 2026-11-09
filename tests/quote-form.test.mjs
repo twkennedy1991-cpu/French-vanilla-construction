@@ -49,6 +49,26 @@ test('rejected or timed out submissions preserve entries, reference and retry ow
     assert.equal(payloads.length, 2); assert.equal(payloads[1].id, payloads[0].id);
   }
 });
+test('an unconfirmed send restores keyboard focus only when the customer is still at the quote', async t => {
+  for (const action of ['wait', 'move focus', 'leave page']) {
+    let fail;
+    const p = page(t, () => new Promise((resolve, reject) => { fail = reject; }));
+    const brand = p.document.querySelector('.brand');
+    p.button.focus();
+    p.submit();
+    // Browsers blur the focused Send button when the request disables it.
+    p.document.body.tabIndex = -1;
+    p.document.body.focus();
+    if (action === 'move focus') brand.focus();
+    if (action === 'leave page') p.window.dispatchEvent(new p.window.Event('pagehide'));
+    fail(new TypeError('offline'));
+    await tick();
+    const expectedFocus = { wait: p.button, 'move focus': brand, 'leave page': p.document.body }[action];
+    assert.equal(p.document.activeElement === expectedFocus, true, action);
+    assert.equal(p.button.disabled, false);
+    assert.match(p.status.textContent, new RegExp(reference));
+  }
+});
 test('invalid design never leaves the browser and can be corrected without losing form fields', async t => {
   const payloads = []; const p = page(t, async quote => { payloads.push(quote); });
   p.document.querySelector('[data-type="Custom Barn Door"]').click();
